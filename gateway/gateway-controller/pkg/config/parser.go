@@ -21,24 +21,82 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 
+	vault "github.com/hashicorp/vault/api"
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
 	"gopkg.in/yaml.v3"
 )
 
-// Parser handles parsing of API configuration files
-type Parser struct{}
+// Parser handles parsing of API configuration files and secret resolution
+type Parser struct {
+	vaultAddress string
+	vaultToken   string
+}
 
 // NewParser creates a new configuration parser
 func NewParser() *Parser {
-	return &Parser{}
+	return &Parser{
+		vaultAddress: "http://localhost:8200",
+		vaultToken:   "my-vault-token",
+	}
+}
+
+func (p *Parser) resolveVaultSecrets(data []byte) ([]byte, error) {
+	pattern := regexp.MustCompile(`hashicorp:vault-lookup\('([^']+)',\s*'([^']+)',\s*'([^']+)'\)`)
+
+	// Initialize Vault client
+	config := vault.DefaultConfig()
+	config.Address = p.vaultAddress
+
+	client, err := vault.NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Vault client: %w", err)
+	}
+	client.SetToken(p.vaultToken)
+
+	// Find and replace all secret references
+	resolved := pattern.ReplaceAllFunc(data, func(match []byte) []byte {
+		matches := pattern.FindStringSubmatch(string(match))
+		if len(matches) != 4 {
+			return match
+		}
+
+		namespace := matches[1]
+		path := matches[2]
+		field := matches[3]
+
+		// Read secret from Vault
+		secret, err := client.Logical().Read(fmt.Sprintf("%s/%s", namespace, path))
+		if err != nil {
+			return match // Return original if failed to fetch
+		}
+
+		if secret == nil || secret.Data == nil {
+			return match
+		}
+
+		// Try to get the field value
+		if value, ok := secret.Data[field].(string); ok {
+			return []byte(value)
+		}
+
+		return match
+	})
+
+	return resolved, nil
 }
 
 // ParseYAML parses YAML content into an API configuration
 func (p *Parser) ParseYAML(data []byte) (*api.APIConfiguration, error) {
-	var config api.APIConfiguration
+	// Resolve any Vault secrets first
+	resolvedData, err := p.resolveVaultSecrets(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve secrets: %w", err)
+	}
 
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	var config api.APIConfiguration
+	if err := yaml.Unmarshal(resolvedData, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
@@ -47,9 +105,14 @@ func (p *Parser) ParseYAML(data []byte) (*api.APIConfiguration, error) {
 
 // ParseJSON parses JSON content into an API configuration
 func (p *Parser) ParseJSON(data []byte) (*api.APIConfiguration, error) {
-	var config api.APIConfiguration
+	// Resolve any Vault secrets first
+	resolvedData, err := p.resolveVaultSecrets(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve secrets: %w", err)
+	}
 
-	if err := json.Unmarshal(data, &config); err != nil {
+	var config api.APIConfiguration
+	if err := json.Unmarshal(resolvedData, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
