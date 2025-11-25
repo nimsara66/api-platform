@@ -60,5 +60,24 @@ CREATE TABLE IF NOT EXISTS policy_definitions (
 
 CREATE INDEX IF NOT EXISTS idx_policy_provider ON policy_definitions(provider);
 
+-- LLM Provider Templates table (added in schema version 3)
+CREATE TABLE IF NOT EXISTS llm_provider_templates (
+    -- Primary identifier (UUID)
+    id TEXT PRIMARY KEY,
+
+    -- Template name (must be unique)
+    name TEXT NOT NULL UNIQUE,
+
+    -- Full template configuration as JSON
+    configuration TEXT NOT NULL,
+
+    -- Timestamps
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for fast name lookups
+CREATE INDEX IF NOT EXISTS idx_template_name ON llm_provider_templates(name);
+
 -- Set schema version
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
