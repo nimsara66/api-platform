@@ -42,7 +42,7 @@ func NewLLMValidator() *LLMValidator {
 // Validate performs comprehensive validation on a configuration
 // It uses type switching to handle different LLM configuration types:
 // - LLMProviderTemplate (for /llm-providers/templates)
-// - LLMProvider (for /llm-providers) - future implementation
+// - LLMProvider (for /llm-providers)
 // - LLMProxy (for /llm-proxies) - future implementation
 func (v *LLMValidator) Validate(config interface{}) []ValidationError {
 	// Type switch to handle different LLM configuration types
@@ -51,9 +51,11 @@ func (v *LLMValidator) Validate(config interface{}) []ValidationError {
 		return v.validateLLMProviderTemplate(cfg)
 	case api.LLMProviderTemplate:
 		return v.validateLLMProviderTemplate(&cfg)
-	// Future: Add cases for LLMProvider and LLMProxy
-	// case *api.LLMProvider:
-	//     return v.validateLLMProvider(cfg)
+	case *api.LLMProvider:
+		return v.validateLLMProvider(cfg)
+	case api.LLMProvider:
+		return v.validateLLMProvider(&cfg)
+	// Future: Add cases for LLMProxy
 	// case *api.LLMProxy:
 	//     return v.validateLLMProxy(cfg)
 	default:
@@ -173,14 +175,191 @@ func (v *LLMValidator) validateTokenIdentifier(fieldPrefix string, identifier *a
 	return errors
 }
 
-// Future: Add validation methods for other LLM entities
-//
 // validateLLMProvider validates an LLM provider configuration
-// func (v *LLMValidator) validateLLMProvider(provider *api.LLMProvider) []ValidationError {
-//     var errors []ValidationError
-//     // Validate provider-specific fields
-//     return errors
-// }
+func (v *LLMValidator) validateLLMProvider(provider *api.LLMProvider) []ValidationError {
+	var errors []ValidationError
+
+	// Validate version
+	if provider.Version == "" {
+		errors = append(errors, ValidationError{
+			Field:   "version",
+			Message: "Version is required",
+		})
+	} else if provider.Version != "api-platform.wso2.com/v1" {
+		errors = append(errors, ValidationError{
+			Field:   "version",
+			Message: "Version must be 'api-platform.wso2.com/v1'",
+		})
+	}
+
+	// Validate kind
+	if provider.Kind == "" {
+		errors = append(errors, ValidationError{
+			Field:   "kind",
+			Message: "Kind is required",
+		})
+	} else if provider.Kind != "llm/provider" {
+		errors = append(errors, ValidationError{
+			Field:   "kind",
+			Message: "Kind must be 'llm/provider'",
+		})
+	}
+
+	// Validate data section
+	errors = append(errors, v.validateProviderData(&provider.Data)...)
+
+	return errors
+}
+
+// validateProviderData validates the data section of an LLM provider
+func (v *LLMValidator) validateProviderData(data *api.LLMProviderData) []ValidationError {
+	var errors []ValidationError
+
+	// Validate name
+	if data.Name == "" {
+		errors = append(errors, ValidationError{
+			Field:   "data.name",
+			Message: "Provider name is required",
+		})
+	} else if !v.nameRegex.MatchString(data.Name) {
+		errors = append(errors, ValidationError{
+			Field:   "data.name",
+			Message: "Provider name must contain only alphanumeric characters, underscores, dots, and hyphens",
+		})
+	}
+
+	// Validate version
+	if data.Version == "" {
+		errors = append(errors, ValidationError{
+			Field:   "data.version",
+			Message: "Provider version is required",
+		})
+	}
+
+	// Validate template reference
+	if data.Template == "" {
+		errors = append(errors, ValidationError{
+			Field:   "data.template",
+			Message: "Template reference is required",
+		})
+	}
+
+	// Validate upstreams
+	if len(data.Upstreams) == 0 {
+		errors = append(errors, ValidationError{
+			Field:   "data.upstreams",
+			Message: "At least one upstream is required",
+		})
+	} else {
+		for i, upstream := range data.Upstreams {
+			errors = append(errors, v.validateUpstream(fmt.Sprintf("data.upstreams[%d]", i), &upstream)...)
+		}
+	}
+
+	// Validate access control if present
+	if data.AccessControl != nil {
+		errors = append(errors, v.validateAccessControl("data.accessControl", data.AccessControl)...)
+	}
+
+	return errors
+}
+
+// validateUpstream validates an upstream configuration
+func (v *LLMValidator) validateUpstream(fieldPrefix string, upstream *api.LLMUpstream) []ValidationError {
+	var errors []ValidationError
+
+	if upstream.Url == "" {
+		errors = append(errors, ValidationError{
+			Field:   fmt.Sprintf("%s.url", fieldPrefix),
+			Message: "Upstream URL is required",
+		})
+	} else {
+		// Basic URL validation
+		if !regexp.MustCompile(`^https?://`).MatchString(upstream.Url) {
+			errors = append(errors, ValidationError{
+				Field:   fmt.Sprintf("%s.url", fieldPrefix),
+				Message: "Upstream URL must start with http:// or https://",
+			})
+		}
+	}
+
+	// Validate auth if present
+	if upstream.Auth != nil {
+		errors = append(errors, v.validateAuth(fmt.Sprintf("%s.auth", fieldPrefix), upstream.Auth)...)
+	}
+
+	return errors
+}
+
+// validateAuth validates authentication configuration
+func (v *LLMValidator) validateAuth(fieldPrefix string, auth *api.LLMAuth) []ValidationError {
+	var errors []ValidationError
+
+	if auth.Type == "" {
+		errors = append(errors, ValidationError{
+			Field:   fmt.Sprintf("%s.type", fieldPrefix),
+			Message: "Auth type is required",
+		})
+	} else if auth.Type != "api-key" && auth.Type != "bearer" {
+		errors = append(errors, ValidationError{
+			Field:   fmt.Sprintf("%s.type", fieldPrefix),
+			Message: "Auth type must be either 'api-key' or 'bearer'",
+		})
+	}
+
+	if auth.Header == "" {
+		errors = append(errors, ValidationError{
+			Field:   fmt.Sprintf("%s.header", fieldPrefix),
+			Message: "Auth header is required",
+		})
+	}
+
+	if auth.Value == "" {
+		errors = append(errors, ValidationError{
+			Field:   fmt.Sprintf("%s.value", fieldPrefix),
+			Message: "Auth value is required",
+		})
+	}
+
+	return errors
+}
+
+// validateAccessControl validates access control configuration
+func (v *LLMValidator) validateAccessControl(fieldPrefix string, ac *api.LLMAccessControl) []ValidationError {
+	var errors []ValidationError
+
+	if ac.Mode != nil {
+		if *ac.Mode != "allow_all" && *ac.Mode != "deny_all" {
+			errors = append(errors, ValidationError{
+				Field:   fmt.Sprintf("%s.mode", fieldPrefix),
+				Message: "Access control mode must be either 'allow_all' or 'deny_all'",
+			})
+		}
+	}
+
+	// Validate exceptions if present
+	if ac.Exceptions != nil {
+		for i, exception := range *ac.Exceptions {
+			if exception.Path == "" {
+				errors = append(errors, ValidationError{
+					Field:   fmt.Sprintf("%s.exceptions[%d].path", fieldPrefix, i),
+					Message: "Exception path is required",
+				})
+			}
+
+			if len(exception.Methods) == 0 {
+				errors = append(errors, ValidationError{
+					Field:   fmt.Sprintf("%s.exceptions[%d].methods", fieldPrefix, i),
+					Message: "At least one method is required for exception",
+				})
+			}
+		}
+	}
+
+	return errors
+}
+
+// Future: Add validation methods for other LLM entities
 //
 // validateLLMProxy validates an LLM proxy configuration
 // func (v *LLMValidator) validateLLMProxy(proxy *api.LLMProxy) []ValidationError {

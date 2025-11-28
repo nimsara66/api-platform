@@ -17,35 +17,35 @@
 # --------------------------------------------------------------------
 
 services:
-  gateway-controller:
-    build:
-      context: ./gateway-controller
-      dockerfile: Dockerfile
-    container_name: gateway-controller
-    image: wso2/api-platform-gateway-controller:v1.0.0-m4
-    ports:
-      - "9090:9090"   # REST API
-      - "18000:18000" # xDS gRPC
-      - "18001:18001"
-    environment:
-      - GATEWAY_STORAGE_TYPE=sqlite
-      - GATEWAY_STORAGE_SQLITE_PATH=./data/gateway.db
-      - GATEWAY_LOGGING_LEVEL=info
-      - GATEWAY_CONTROLPLANE_TOKEN=${GATEWAY_CONTROLPLANE_TOKEN:-}
-      - GATEWAY_CONTROLPLANE_HOST=${GATEWAY_CONTROLPLANE_HOST:-host.docker.internal:8443}
-    volumes:
-      - controller-data:/app/data
-      - ./gateway-controller/config/config.yaml:/app/config/config.yaml:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - gateway-network
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+#  gateway-controller:
+#    build:
+#      context: ./gateway-controller
+#      dockerfile: Dockerfile
+#    container_name: gateway-controller
+#    image: wso2/api-platform-gateway-controller:v1.0.0-m4
+#    ports:
+#      - "9090:9090"   # REST API
+#      - "18000:18000" # xDS gRPC
+#      - "18001:18001"
+#    environment:
+#      - GATEWAY_STORAGE_TYPE=sqlite
+#      - GATEWAY_STORAGE_SQLITE_PATH=./data/gateway.db
+#      - GATEWAY_LOGGING_LEVEL=info
+#      - GATEWAY_CONTROLPLANE_TOKEN=${GATEWAY_CONTROLPLANE_TOKEN:-}
+#      - GATEWAY_CONTROLPLANE_HOST=${GATEWAY_CONTROLPLANE_HOST:-host.docker.internal:8443}
+#    volumes:
+#      - controller-data:/app/data
+#      - ./gateway-controller/config/config.yaml:/app/config/config.yaml:ro
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
+#    networks:
+#      - gateway-network
+#    healthcheck:
+#      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/health"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 3
+#      start_period: 10s
 
   policy-engine:
     build:

@@ -141,6 +141,18 @@ func (s *SQLiteStorage) initSchema() error {
 			version = 3
 		}
 
+		if version == 3 {
+			// Add original_configuration column to api_configs table
+			if _, err := s.db.Exec(`ALTER TABLE api_configs ADD COLUMN original_configuration TEXT;`); err != nil {
+				return fmt.Errorf("failed to migrate schema to version 4: %w", err)
+			}
+			if _, err := s.db.Exec("PRAGMA user_version = 4"); err != nil {
+				return fmt.Errorf("failed to set schema version to 4: %w", err)
+			}
+			s.logger.Info("Schema migrated to version 4 (original_configuration)")
+			version = 4
+		}
+
 		s.logger.Info("Database schema already exists", zap.Int("version", version))
 	}
 
@@ -155,6 +167,17 @@ func (s *SQLiteStorage) SaveConfig(cfg *models.StoredAPIConfig) error {
 		return fmt.Errorf("failed to marshal configuration: %w", err)
 	}
 
+	// Serialize original configuration if present
+	var originalConfigJSON *string
+	if cfg.OriginalConfiguration != nil {
+		originalJSON, err := json.Marshal(cfg.OriginalConfiguration)
+		if err != nil {
+			return fmt.Errorf("failed to marshal original configuration: %w", err)
+		}
+		originalStr := string(originalJSON)
+		originalConfigJSON = &originalStr
+	}
+
 	// Extract fields for indexed columns
 	name := cfg.GetAPIName()
 	version := cfg.GetAPIVersion()
@@ -164,8 +187,8 @@ func (s *SQLiteStorage) SaveConfig(cfg *models.StoredAPIConfig) error {
 	query := `
 		INSERT INTO api_configs (
 			id, name, version, context, kind, configuration,
-			status, created_at, updated_at, deployed_version
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			status, created_at, updated_at, deployed_version, original_configuration
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	now := time.Now()
@@ -180,6 +203,7 @@ func (s *SQLiteStorage) SaveConfig(cfg *models.StoredAPIConfig) error {
 		now,
 		now,
 		cfg.DeployedVersion,
+		originalConfigJSON,
 	)
 
 	if err != nil {
@@ -215,6 +239,17 @@ func (s *SQLiteStorage) UpdateConfig(cfg *models.StoredAPIConfig) error {
 		return fmt.Errorf("failed to marshal configuration: %w", err)
 	}
 
+	// Serialize original configuration if present
+	var originalConfigJSON *string
+	if cfg.OriginalConfiguration != nil {
+		originalJSON, err := json.Marshal(cfg.OriginalConfiguration)
+		if err != nil {
+			return fmt.Errorf("failed to marshal original configuration: %w", err)
+		}
+		originalStr := string(originalJSON)
+		originalConfigJSON = &originalStr
+	}
+
 	// Extract fields for indexed columns
 	name := cfg.GetAPIName()
 	version := cfg.GetAPIVersion()
@@ -225,7 +260,7 @@ func (s *SQLiteStorage) UpdateConfig(cfg *models.StoredAPIConfig) error {
 		UPDATE api_configs
 		SET name = ?, version = ?, context = ?, kind = ?,
 		    configuration = ?, status = ?, updated_at = ?,
-		    deployed_version = ?
+		    deployed_version = ?, original_configuration = ?
 		WHERE id = ?
 	`
 
@@ -238,6 +273,7 @@ func (s *SQLiteStorage) UpdateConfig(cfg *models.StoredAPIConfig) error {
 		cfg.Status,
 		time.Now(),
 		cfg.DeployedVersion,
+		originalConfigJSON,
 		cfg.ID,
 	)
 
@@ -289,7 +325,7 @@ func (s *SQLiteStorage) DeleteConfig(id string) error {
 func (s *SQLiteStorage) GetConfig(id string) (*models.StoredAPIConfig, error) {
 	query := `
 		SELECT id, configuration, status, created_at, updated_at,
-		       deployed_at, deployed_version
+		       deployed_at, deployed_version, original_configuration
 		FROM api_configs
 		WHERE id = ?
 	`
@@ -297,6 +333,7 @@ func (s *SQLiteStorage) GetConfig(id string) (*models.StoredAPIConfig, error) {
 	var cfg models.StoredAPIConfig
 	var configJSON string
 	var deployedAt sql.NullTime
+	var originalConfigJSON sql.NullString
 
 	err := s.db.QueryRow(query, id).Scan(
 		&cfg.ID,
@@ -306,6 +343,7 @@ func (s *SQLiteStorage) GetConfig(id string) (*models.StoredAPIConfig, error) {
 		&cfg.UpdatedAt,
 		&deployedAt,
 		&cfg.DeployedVersion,
+		&originalConfigJSON,
 	)
 
 	if err != nil {
@@ -325,6 +363,15 @@ func (s *SQLiteStorage) GetConfig(id string) (*models.StoredAPIConfig, error) {
 		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
+	// Deserialize original configuration if present
+	if originalConfigJSON.Valid && originalConfigJSON.String != "" {
+		var originalConfig map[string]interface{}
+		if err := json.Unmarshal([]byte(originalConfigJSON.String), &originalConfig); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal original configuration: %w", err)
+		}
+		cfg.OriginalConfiguration = originalConfig
+	}
+
 	return &cfg, nil
 }
 
@@ -332,7 +379,7 @@ func (s *SQLiteStorage) GetConfig(id string) (*models.StoredAPIConfig, error) {
 func (s *SQLiteStorage) GetConfigByNameVersion(name, version string) (*models.StoredAPIConfig, error) {
 	query := `
 		SELECT id, configuration, status, created_at, updated_at,
-		       deployed_at, deployed_version
+		       deployed_at, deployed_version, original_configuration
 		FROM api_configs
 		WHERE name = ? AND version = ?
 	`
@@ -340,6 +387,7 @@ func (s *SQLiteStorage) GetConfigByNameVersion(name, version string) (*models.St
 	var cfg models.StoredAPIConfig
 	var configJSON string
 	var deployedAt sql.NullTime
+	var originalConfigJSON sql.NullString
 
 	err := s.db.QueryRow(query, name, version).Scan(
 		&cfg.ID,
@@ -349,6 +397,7 @@ func (s *SQLiteStorage) GetConfigByNameVersion(name, version string) (*models.St
 		&cfg.UpdatedAt,
 		&deployedAt,
 		&cfg.DeployedVersion,
+		&originalConfigJSON,
 	)
 
 	if err != nil {
@@ -368,6 +417,15 @@ func (s *SQLiteStorage) GetConfigByNameVersion(name, version string) (*models.St
 		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
+	// Deserialize original configuration if present
+	if originalConfigJSON.Valid && originalConfigJSON.String != "" {
+		var originalConfig map[string]interface{}
+		if err := json.Unmarshal([]byte(originalConfigJSON.String), &originalConfig); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal original configuration: %w", err)
+		}
+		cfg.OriginalConfiguration = originalConfig
+	}
+
 	return &cfg, nil
 }
 
@@ -375,7 +433,7 @@ func (s *SQLiteStorage) GetConfigByNameVersion(name, version string) (*models.St
 func (s *SQLiteStorage) GetAllConfigs() ([]*models.StoredAPIConfig, error) {
 	query := `
 		SELECT id, configuration, status, created_at, updated_at,
-		       deployed_at, deployed_version
+		       deployed_at, deployed_version, original_configuration
 		FROM api_configs
 		ORDER BY created_at DESC
 	`
@@ -392,6 +450,7 @@ func (s *SQLiteStorage) GetAllConfigs() ([]*models.StoredAPIConfig, error) {
 		var cfg models.StoredAPIConfig
 		var configJSON string
 		var deployedAt sql.NullTime
+		var originalConfigJSON sql.NullString
 
 		err := rows.Scan(
 			&cfg.ID,
@@ -401,6 +460,7 @@ func (s *SQLiteStorage) GetAllConfigs() ([]*models.StoredAPIConfig, error) {
 			&cfg.UpdatedAt,
 			&deployedAt,
 			&cfg.DeployedVersion,
+			&originalConfigJSON,
 		)
 
 		if err != nil {
@@ -415,6 +475,15 @@ func (s *SQLiteStorage) GetAllConfigs() ([]*models.StoredAPIConfig, error) {
 		// Deserialize JSON configuration
 		if err := json.Unmarshal([]byte(configJSON), &cfg.Configuration); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
+		}
+
+		// Deserialize original configuration if present
+		if originalConfigJSON.Valid && originalConfigJSON.String != "" {
+			var originalConfig map[string]interface{}
+			if err := json.Unmarshal([]byte(originalConfigJSON.String), &originalConfig); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal original configuration: %w", err)
+			}
+			cfg.OriginalConfiguration = originalConfig
 		}
 
 		configs = append(configs, &cfg)

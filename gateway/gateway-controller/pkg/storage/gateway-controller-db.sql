@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS api_configs (
     kind TEXT NOT NULL,                  -- API type: "http/rest", "graphql", "grpc", "asyncapi"
 
     -- Full API configuration as JSON
-    configuration TEXT NOT NULL,         -- JSON-serialized APIConfiguration
+    configuration TEXT NOT NULL,         -- JSON-serialized APIConfiguration (transformed for deployment)
 
     -- Deployment status
     status TEXT NOT NULL CHECK(status IN ('pending', 'deployed', 'failed')),
@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS api_configs (
 
     -- Version tracking for xDS snapshots
     deployed_version INTEGER NOT NULL DEFAULT 0,
+
+    -- Original configuration for transformed configs (added in schema version 4)
+    -- Stores the original config when a non-API kind is transformed to APIConfiguration
+    -- Contains the kind field, so no separate original_kind column needed
+    original_configuration TEXT,         -- JSON-serialized original config (e.g., LLMProviderTemplate)
 
     -- Composite unique constraint (API name + version must be unique)
     UNIQUE(name, version)
@@ -80,4 +85,4 @@ CREATE TABLE IF NOT EXISTS llm_provider_templates (
 CREATE INDEX IF NOT EXISTS idx_template_name ON llm_provider_templates(name);
 
 -- Set schema version
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;

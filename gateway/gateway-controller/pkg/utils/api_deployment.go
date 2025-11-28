@@ -39,6 +39,8 @@ type APIDeploymentParams struct {
 	APIID         string      // API ID (if provided, used for updates; if empty, generates new UUID)
 	CorrelationID string      // Correlation ID for tracking
 	Logger        *zap.Logger // Logger instance
+	// NEW: original configuration for transformed entities (e.g., llm/provider)
+	OriginalConfig interface{}
 }
 
 // APIDeploymentResult contains the result of API deployment
@@ -113,6 +115,8 @@ func (s *APIDeploymentService) DeployAPIConfiguration(params APIDeploymentParams
 		UpdatedAt:       now,
 		DeployedAt:      nil,
 		DeployedVersion: 0,
+		// Set original configuration if provided
+		OriginalConfiguration: params.OriginalConfig,
 	}
 
 	// Try to save/update the configuration

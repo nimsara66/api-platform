@@ -1,0 +1,93 @@
+version: api-platform.wso2.com/v1
+kind: llm/provider-template
+data:
+  name: openai_v1.0
+  promptTokens:
+    location: payload
+    identifier: $.usage.inputTokens
+  completionTokens:
+    location: payload
+    identifier: $.usage.outputTokens
+  totalTokens:
+    location: payload
+    identifier: $.usage.totalTokens
+  requestModel:
+    location: payload
+    identifier: $.model
+  openapi: |
+    openapi: 3.0.1
+    info:
+      title: OpenAI Chat Completions API
+      version: "1.0.0"
+    paths:
+      /v1/chat/completions:
+        post:
+          summary: Create chat completion
+          description: |
+            Given a list of messages, the model will return a chat completion response.
+          operationId: createChatCompletion
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    model:
+                      type: string
+                      example: gpt-4o-mini
+                    messages:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          role:
+                            type: string
+                            enum: [system, user, assistant, tool]
+                          content:
+                            type: string
+                    max_tokens:
+                      type: integer
+                    temperature:
+                      type: number
+                  required: [model, messages]
+          responses:
+            "200":
+              description: A chat completion response.
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      object:
+                        type: string
+                        example: chat.completion
+                      model:
+                        type: string
+                      usage:
+                        type: object
+                        properties:
+                          inputTokens:
+                            type: integer
+                          outputTokens:
+                            type: integer
+                          totalTokens:
+                            type: integer
+                      choices:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            index:
+                              type: integer
+                            message:
+                              type: object
+                              properties:
+                                role:
+                                  type: string
+                                content:
+                                  type: string
+                            finish_reason:
+                              type: string

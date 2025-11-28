@@ -36,13 +36,17 @@ const (
 
 // StoredAPIConfig represents the configuration stored in the database and in-memory
 type StoredAPIConfig struct {
-	ID              string                    `json:"id"`
-	Configuration   api.APIConfiguration      `json:"configuration"`
-	Status          ConfigStatus              `json:"status"`
-	CreatedAt       time.Time                 `json:"created_at"`
-	UpdatedAt       time.Time                 `json:"updated_at"`
-	DeployedAt      *time.Time                `json:"deployed_at,omitempty"`
-	DeployedVersion int64                     `json:"deployed_version"`
+	ID              string               `json:"id"`
+	Configuration   api.APIConfiguration `json:"configuration"`
+	Status          ConfigStatus         `json:"status"`
+	CreatedAt       time.Time            `json:"created_at"`
+	UpdatedAt       time.Time            `json:"updated_at"`
+	DeployedAt      *time.Time           `json:"deployed_at,omitempty"`
+	DeployedVersion int64                `json:"deployed_version"`
+
+	// Original configuration for transformed configs (e.g., llm/provider → http/rest)
+	// Contains the kind field, so no need for separate OriginalKind field
+	OriginalConfiguration interface{} `json:"original_configuration,omitempty"`
 }
 
 // GetCompositeKey returns the composite key "name:version" for indexing
@@ -63,4 +67,29 @@ func (c *StoredAPIConfig) GetAPIVersion() string {
 // GetContext returns the API context path
 func (c *StoredAPIConfig) GetContext() string {
 	return c.Configuration.Data.Context
+}
+
+// IsTransformed returns true if this config was transformed from another kind
+func (c *StoredAPIConfig) IsTransformed() bool {
+	return c.OriginalConfiguration != nil
+}
+
+// GetOriginalKind extracts the kind from the original configuration
+func (c *StoredAPIConfig) GetOriginalKind() string {
+	if c.OriginalConfiguration == nil {
+		return string(c.Configuration.Kind)
+	}
+
+	// Type switch to extract kind from different config types
+	switch cfg := c.OriginalConfiguration.(type) {
+	case api.LLMProvider:
+		return string(cfg.Kind)
+	case *api.LLMProvider:
+		return string(cfg.Kind)
+	// Future: Add other types as they are introduced
+	// case api.LLMProxy:
+	//     return string(cfg.Kind)
+	default:
+		return string(c.Configuration.Kind)
+	}
 }
