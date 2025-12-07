@@ -22,6 +22,7 @@ spec:
   name: Weather-API
   version: v1.0
   context: /weather/$version
+  # vhost: api.example.com  # Optional; when set, routes are created under this domain instead of the default
   upstreams:
     - url: http://sample-backend:5000/api/v2
   policies:

@@ -130,17 +130,25 @@ func (t *Translator) TranslateConfigs(
 	var listeners []types.Resource
 	var clusters []types.Resource
 
-	// We'll use a single listener on port 8080 with a single virtual host
-	// All API routes are consolidated into one virtual host to avoid wildcard domain conflicts
-	allRoutes := make([]*route.Route, 0)
+	// Group routes by vhost so that we can create a VirtualHost per domain
+	vhostRoutes := make(map[string][]*route.Route)
 	clusterMap := make(map[string]*cluster.Cluster)
 
 	for _, cfg := range configs {
 		// Include ALL configs (both deployed and pending) in the snapshot
 		// This ensures existing APIs are not overridden when deploying new APIs
 
+		// Determine effective vhost for this API
+		apiData := cfg.Configuration.Spec
+		effectiveVHost := t.routerConfig.GatewayHost
+		if apiData.Vhost != nil {
+			if h := strings.TrimSpace(*apiData.Vhost); h != "" {
+				effectiveVHost = h
+			}
+		}
+
 		// Create routes and clusters for this API
-		routesList, clusterList, err := t.translateAPIConfig(cfg)
+		routesList, clusterList, err := t.translateAPIConfig(cfg, effectiveVHost)
 		if err != nil {
 			log.Error("Failed to translate config",
 				zap.String("id", cfg.ID),
@@ -149,7 +157,8 @@ func (t *Translator) TranslateConfigs(
 			continue
 		}
 
-		allRoutes = append(allRoutes, routesList...)
+		// Collect routes under the effective vhost
+		vhostRoutes[effectiveVHost] = append(vhostRoutes[effectiveVHost], routesList...)
 
 		// Add clusters (avoiding duplicates)
 		for _, c := range clusterList {
@@ -157,30 +166,42 @@ func (t *Translator) TranslateConfigs(
 		}
 	}
 
-	// Add a catch-all route that returns 404 for unmatched requests
-	// This should be the last route (lowest priority)
-	allRoutes = append(allRoutes, &route.Route{
-		Match: &route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Prefix{
-				Prefix: "/",
+	// Build VirtualHosts from grouped routes
+	virtualHosts := make([]*route.VirtualHost, 0, len(vhostRoutes))
+	for vhostDomain, routes := range vhostRoutes {
+		// Add a catch-all route that returns 404 for unmatched requests for this vhost
+		routes = append(routes, &route.Route{
+			Match: &route.RouteMatch{
+				PathSpecifier: &route.RouteMatch_Prefix{Prefix: "/"},
 			},
-		},
-		Action: &route.Route_DirectResponse{
-			DirectResponse: &route.DirectResponseAction{
-				Status: 404,
-			},
-		},
-	})
+			Action: &route.Route_DirectResponse{DirectResponse: &route.DirectResponseAction{Status: 404}},
+		})
 
-	// Create a single virtual host with all routes
-	virtualHost := &route.VirtualHost{
-		Name:    "all_apis",
-		Domains: []string{"*"},
-		Routes:  allRoutes,
+		vh := &route.VirtualHost{
+			Name:    t.sanitizeVHostName(vhostDomain),
+			Domains: []string{vhostDomain, vhostDomain + ":*"},
+			Routes:  routes,
+		}
+		virtualHosts = append(virtualHosts, vh)
+	}
+
+	// If there were no APIs, still create a default virtual host with 404
+	if len(virtualHosts) == 0 {
+		vh := &route.VirtualHost{
+			Name:    t.sanitizeVHostName(t.routerConfig.GatewayHost),
+			Domains: []string{t.routerConfig.GatewayHost},
+			Routes: []*route.Route{ // default 404
+				{
+					Match:  &route.RouteMatch{PathSpecifier: &route.RouteMatch_Prefix{Prefix: "/"}},
+					Action: &route.Route_DirectResponse{DirectResponse: &route.DirectResponseAction{Status: 404}},
+				},
+			},
+		}
+		virtualHosts = append(virtualHosts, vh)
 	}
 
 	// Always create the HTTP listener, even with no APIs deployed
-	httpListener, err := t.createListener([]*route.VirtualHost{virtualHost}, false)
+	httpListener, err := t.createListener(virtualHosts, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP listener: %w", err)
 	}
@@ -190,7 +211,7 @@ func (t *Translator) TranslateConfigs(
 	if t.routerConfig.HTTPSEnabled {
 		log.Info("HTTPS is enabled, creating HTTPS listener",
 			zap.Int("https_port", t.routerConfig.HTTPSPort))
-		httpsListener, err := t.createListener([]*route.VirtualHost{virtualHost}, true)
+		httpsListener, err := t.createListener(virtualHosts, true)
 		if err != nil {
 			log.Error("Failed to create HTTPS listener", zap.Error(err))
 			return nil, fmt.Errorf("failed to create HTTPS listener: %w", err)
@@ -241,7 +262,7 @@ func (t *Translator) TranslateConfigs(
 }
 
 // translateAPIConfig translates a single API configuration
-func (t *Translator) translateAPIConfig(cfg *models.StoredAPIConfig) ([]*route.Route, []*cluster.Cluster, error) {
+func (t *Translator) translateAPIConfig(cfg *models.StoredAPIConfig, vhost string) ([]*route.Route, []*cluster.Cluster, error) {
 	apiData := cfg.Configuration.Spec
 
 	// Parse upstream URL
@@ -263,7 +284,7 @@ func (t *Translator) translateAPIConfig(cfg *models.StoredAPIConfig) ([]*route.R
 	// Create routes for each operation
 	routesList := make([]*route.Route, 0)
 	for _, op := range apiData.Operations {
-		r := t.createRoute(apiData.Name, apiData.Version, apiData.Context, string(op.Method), op.Path, clusterName, parsedURL.Path)
+		r := t.createRoute(apiData.Name, apiData.Version, apiData.Context, string(op.Method), op.Path, clusterName, parsedURL.Path, vhost)
 		routesList = append(routesList, r)
 	}
 
@@ -393,13 +414,13 @@ func (t *Translator) createRouteConfiguration(virtualHosts []*route.VirtualHost)
 }
 
 // createRoute creates a route for an operation
-func (t *Translator) createRoute(apiName, apiVersion, context, method, path, clusterName, upstreamPath string) *route.Route {
+func (t *Translator) createRoute(apiName, apiVersion, context, method, path, clusterName, upstreamPath string, vhost string) *route.Route {
 	// Build the full path using the utility function
 	fullPath := ConstructFullPath(context, apiVersion, path)
 
 	// Generate unique route name using the helper function
 	// Format: HttpMethod|RoutePath|Vhost (e.g., "GET|/weather/v1.0/us/seattle|localhost")
-	routeName := GenerateRouteName(method, context, apiVersion, path, t.routerConfig.GatewayHost)
+	routeName := GenerateRouteName(method, context, apiVersion, path, vhost)
 
 	// Check if path contains parameters (e.g., {country_code})
 	hasParams := strings.Contains(path, "{")
@@ -432,19 +453,11 @@ func (t *Translator) createRoute(apiName, apiVersion, context, method, path, clu
 		Action: &route.Route_Route{
 			Route: &route.RouteAction{
 				HostRewriteSpecifier: &route.RouteAction_AutoHostRewrite{
-					AutoHostRewrite: &wrapperspb.BoolValue{
-						Value: true,
-					},
+					AutoHostRewrite: &wrapperspb.BoolValue{Value: true},
 				},
-				Timeout: durationpb.New(
-					time.Duration(t.routerConfig.Upstream.Timeouts.RouteTimeoutInSeconds) * time.Second,
-				),
-				IdleTimeout: durationpb.New(
-					time.Duration(t.routerConfig.Upstream.Timeouts.RouteIdleTimeoutInSeconds) * time.Second,
-				),
-				ClusterSpecifier: &route.RouteAction_Cluster{
-					Cluster: clusterName,
-				},
+				Timeout:          durationpb.New(time.Duration(t.routerConfig.Upstream.Timeouts.RouteTimeoutInSeconds) * time.Second),
+				IdleTimeout:      durationpb.New(time.Duration(t.routerConfig.Upstream.Timeouts.RouteIdleTimeoutInSeconds) * time.Second),
+				ClusterSpecifier: &route.RouteAction_Cluster{Cluster: clusterName},
 			},
 		},
 	}
@@ -469,34 +482,31 @@ func (t *Translator) createRoute(apiName, apiVersion, context, method, path, clu
 		r.Match.PathSpecifier = pathSpecifier
 	} else {
 		// Use exact path matching for non-parameterized paths
-		r.Match.PathSpecifier = &route.RouteMatch_Path{
-			Path: fullPath,
-		}
+		r.Match.PathSpecifier = &route.RouteMatch_Path{Path: fullPath}
 	}
 
-	// Add path rewriting if upstream has a path prefix
-	// Strip the API context (with version if included) and prepend the upstream path
-	// Example 1: request /weather/v1.0/us/seattle with context /weather/$version and upstream /api/v2
-	//            should result in /api/v2/us/seattle
-	// Example 2: request /weather/us/seattle with context /weather and upstream /api/v2
-	//            should result in /api/v2/us/seattle
-
-	// Use RegexRewrite to strip the context (with version substituted if present) and prepend upstream path
-	// Pattern captures everything after the context
-	// Escape special regex characters (e.g., dots in version like v1.0)
+	// Path rewrite when upstream has path prefix
 	if upstreamPath == "/" {
 		upstreamPath = ""
 	}
 	contextWithVersion := ConstructFullPath(context, apiVersion, "")
 	escapedContext := regexp.QuoteMeta(contextWithVersion)
 	r.GetRoute().RegexRewrite = &matcher.RegexMatchAndSubstitute{
-		Pattern: &matcher.RegexMatcher{
-			Regex: "^" + escapedContext + "(.*)$",
-		},
+		Pattern:      &matcher.RegexMatcher{Regex: "^" + escapedContext + "(.*)$"},
 		Substitution: upstreamPath + "\\1",
 	}
 
 	return r
+}
+
+// sanitizeVHostName creates a valid virtual host name from a domain pattern
+func (t *Translator) sanitizeVHostName(vhost string) string {
+	s := strings.ToLower(vhost)
+	s = strings.ReplaceAll(s, "*", "wildcard")
+	s = strings.ReplaceAll(s, ".", "_")
+	s = strings.ReplaceAll(s, ":", "_")
+	s = strings.ReplaceAll(s, "-", "_")
+	return "vhost_" + s
 }
 
 // createCluster creates an Envoy cluster

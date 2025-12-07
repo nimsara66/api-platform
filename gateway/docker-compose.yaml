@@ -79,17 +79,17 @@ services:
       retries: 3
       start_period: 30s
 
-  sample-backend:
-    image: renukafernando/request-info:latest
-    container_name: sample-backend
-    ports:
-      - "5000:5000"
-    command: ["-addr", ":5000", "-pretty"]
-    # command: ["-addr", ":5000", "-pretty", "-https", "-cert", "/app/certs/server.pem", "-key", "/app/certs/server.key"]
-    volumes:
-      - ./resources/sample-backend-certs:/app/certs:ro
-    networks:
-      - gateway-network
+#  sample-backend:
+#    image: renukafernando/request-info:latest
+#    container_name: sample-backend
+#    ports:
+#      - "5000:5000"
+#    command: ["-addr", ":5000", "-pretty"]
+#    # command: ["-addr", ":5000", "-pretty", "-https", "-cert", "/app/certs/server.pem", "-key", "/app/certs/server.key"]
+#    volumes:
+#      - ./resources/sample-backend-certs:/app/certs:ro
+#    networks:
+#      - gateway-network
 
   secure-backend:
     image: nginx:alpine

@@ -636,6 +636,10 @@ components:
           minLength: 1
           maxLength: 200
           example: /weather
+        vhost:
+          type: string
+          description: Optional virtual host (domain) to match for this API. If provided, routes are created under this vhost; otherwise, the default (*) vhost is used.
+          example: api.example.com
         upstreams:
           type: array
           description: List of backend service URLs
