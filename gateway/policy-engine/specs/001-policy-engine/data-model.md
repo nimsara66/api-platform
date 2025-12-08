@@ -1,4 +1,4 @@
-# Data Model: Envoy Policy Engine
+# Spec Model: Envoy Policy Engine
 
 **Feature**: 001-policy-engine | **Date**: 2025-11-18
 
@@ -740,7 +740,7 @@ PolicyChain is constructed with computed flags:
 
 ---
 
-## Data Flow
+## Spec Flow
 
 ### Request Phase
 1. Envoy sends request headers → ExternalProcessorServer.Process()

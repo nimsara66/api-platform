@@ -1,4 +1,4 @@
-# Data Model: Gateway with Controller and Router
+# Spec Model: Gateway with Controller and Router
 
 **Date**: 2025-10-11
 **Phase**: 1 - Design & Contracts
@@ -57,7 +57,7 @@ data:
       path: /{country_code}/{city}
 ```
 
-### Go Data Structure
+### Go Spec Structure
 
 **GENERATED CODE** (from `pkg/api/generated.go` via oapi-codegen):
 
@@ -67,7 +67,7 @@ data:
 type APIConfiguration struct {
     Version string           `json:"version" yaml:"version"`
     Kind    string           `json:"kind" yaml:"kind"`
-    Data    APIConfigData    `json:"data" yaml:"data"`
+    Spec    APIConfigData    `json:"data" yaml:"data"`
 }
 
 // APIConfigData contains the API-specific configuration
@@ -306,7 +306,7 @@ type ValidationError struct {
 ### Description
 In-memory maps that serve as the primary runtime data source for fast access and xDS cache generation. These maps are loaded from the database on startup and updated on every configuration change.
 
-### Go Data Structure
+### Go Spec Structure
 
 ```go
 // ConfigStore holds all API configurations in memory
@@ -331,10 +331,10 @@ func (cs *ConfigStore) Add(cfg *StoredAPIConfig) error {
     cs.mu.Lock()
     defer cs.mu.Unlock()
 
-    key := fmt.Sprintf("%s:%s", cfg.Configuration.Data.Name, cfg.Configuration.Data.Version)
+    key := fmt.Sprintf("%s:%s", cfg.Configuration.Spec.Name, cfg.Configuration.Spec.Version)
     if existingID, exists := cs.nameVersion[key]; exists {
         return fmt.Errorf("configuration with name '%s' and version '%s' already exists (ID: %s)",
-            cfg.Configuration.Data.Name, cfg.Configuration.Data.Version, existingID)
+            cfg.Configuration.Spec.Name, cfg.Configuration.Spec.Version, existingID)
     }
 
     cs.configs[cfg.ID] = cfg
@@ -353,8 +353,8 @@ func (cs *ConfigStore) Update(cfg *StoredAPIConfig) error {
     }
 
     // If name/version changed, update the nameVersion index
-    oldKey := fmt.Sprintf("%s:%s", existing.Configuration.Data.Name, existing.Configuration.Data.Version)
-    newKey := fmt.Sprintf("%s:%s", cfg.Configuration.Data.Name, cfg.Configuration.Data.Version)
+    oldKey := fmt.Sprintf("%s:%s", existing.Configuration.Spec.Name, existing.Configuration.Spec.Version)
+    newKey := fmt.Sprintf("%s:%s", cfg.Configuration.Spec.Name, cfg.Configuration.Spec.Version)
 
     if oldKey != newKey {
         delete(cs.nameVersion, oldKey)
@@ -375,7 +375,7 @@ func (cs *ConfigStore) Delete(id string) error {
         return fmt.Errorf("configuration with ID '%s' not found", id)
     }
 
-    key := fmt.Sprintf("%s:%s", cfg.Configuration.Data.Name, cfg.Configuration.Data.Version)
+    key := fmt.Sprintf("%s:%s", cfg.Configuration.Spec.Name, cfg.Configuration.Spec.Version)
     delete(cs.nameVersion, key)
     delete(cs.configs, id)
     return nil
@@ -430,7 +430,7 @@ func (cs *ConfigStore) GetSnapshotVersion() int64 {
 ### Description
 Internal representation of API Configuration as stored in bbolt database. Includes metadata for lifecycle management. Database serves as the persistence layer and is synchronized with in-memory maps.
 
-### Go Data Structure
+### Go Spec Structure
 
 ```go
 // StoredConfig represents the configuration stored in the database and in-memory
@@ -506,7 +506,7 @@ func (cs *ConfigStore) LoadFromDatabase(db *bolt.DB) error {
 
             // Add to in-memory store (bypassing locks since we're in startup)
             cs.configs[cfg.ID] = &cfg
-            key := fmt.Sprintf("%s:%s", cfg.Configuration.Data.Name, cfg.Configuration.Data.Version)
+            key := fmt.Sprintf("%s:%s", cfg.Configuration.Spec.Name, cfg.Configuration.Spec.Version)
             cs.nameVersion[key] = cfg.ID
 
             // Track highest deployed version for snapshot versioning
@@ -536,7 +536,7 @@ func (cs *ConfigStore) LoadFromDatabase(db *bolt.DB) error {
 ### Description
 Record of configuration changes for audit trail and debugging.
 
-### Go Data Structure
+### Go Spec Structure
 
 ```go
 // AuditEvent represents a configuration change event
@@ -578,7 +578,7 @@ const (
 ### Description
 Internal representation of Envoy configuration snapshot. This is generated from API Configuration and pushed to Router via xDS protocol.
 
-### Go Data Structure (using go-control-plane types)
+### Go Spec Structure (using go-control-plane types)
 
 ```go
 import (
@@ -699,7 +699,7 @@ data:
 
 ---
 
-## Data Flow Summary
+## Spec Flow Summary
 
 ### Startup Flow
 ```
@@ -962,4 +962,4 @@ generate:
 
 ---
 
-**Status**: Data model complete with in-memory architecture, SotW protocol, and code generation workflow. Ready for implementation.
+**Status**: Spec model complete with in-memory architecture, SotW protocol, and code generation workflow. Ready for implementation.

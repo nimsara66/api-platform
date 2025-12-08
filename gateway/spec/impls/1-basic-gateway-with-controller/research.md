@@ -163,7 +163,7 @@ This document consolidates research findings for key technical decisions require
 - Package organization within `pkg/`:
   - `api/` - Gin HTTP handlers and middleware
   - `config/` - YAML/JSON parsing and validation
-  - `models/` - Data structures
+  - `models/` - Spec structures
   - `storage/` - Database abstraction and implementation
   - `xds/` - xDS server and Envoy configuration translation
   - `logger/` - Zap logging setup
@@ -284,7 +284,7 @@ This document consolidates research findings for key technical decisions require
 - **Operational Simplicity**: No need to manually restart Router after Controller comes online
 - **Fail-Safe Default**: Ensures Router never serves stale or missing configuration; waits for authoritative source
 - **Standard Envoy Behavior**: Aligns with Envoy's built-in retry mechanisms for xDS connections
-- **No Stale Data**: Router will not route traffic until it receives valid configuration from Controller
+- **No Stale Spec**: Router will not route traffic until it receives valid configuration from Controller
 
 **Alternatives Considered**:
 - **Fail fast after timeout**: Rejected because it forces manual intervention and complicates container orchestration
@@ -692,4 +692,4 @@ func main() {
 | REST API code generation | oapi-codegen with Gin framework | ✅ High |
 | Router access logs | JSON format to stdout in bootstrap config | ✅ High |
 
-**Status**: All technical clarifications resolved including spec clarifications from 2025-10-12, code generation strategy from 2025-10-12, and access logging strategy from 2025-10-12. Ready to proceed to Phase 1 (Data Model & Contracts).
+**Status**: All technical clarifications resolved including spec clarifications from 2025-10-12, code generation strategy from 2025-10-12, and access logging strategy from 2025-10-12. Ready to proceed to Phase 1 (Spec Model & Contracts).

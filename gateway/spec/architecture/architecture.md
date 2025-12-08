@@ -91,7 +91,7 @@ Envoy-based gateway system with Go xDS control plane for dynamic API configurati
 - Advanced distributed rate limiting.
 - Use case: Production, enterprise deployments.
 
-## Data Flow
+## Spec Flow
 
 ### API Configuration Lifecycle
 1. User submits API config (YAML/JSON) to REST API (port 9090).

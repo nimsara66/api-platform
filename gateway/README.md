@@ -116,7 +116,7 @@ User → Gateway-Controller (REST API)
        Router (Envoy Proxy) → Backend Services
 ```
 
-### Data Flow
+### Spec Flow
 
 1. User submits API configuration (YAML/JSON) to Gateway-Controller
 2. Gateway-Controller validates, persists to bbolt database, and updates in-memory maps
@@ -191,7 +191,7 @@ For complete configuration options, see [Gateway-Controller Configuration](gatew
 - [Router README](router/README.md) - Envoy configuration details
 - [API Specification](gateway-controller/api/openapi.yaml) - OpenAPI 3.0 spec
 - [Quickstart Guide](../specs/001-gateway-has-two/quickstart.md) - Step-by-step guide
-- [Data Model](../specs/001-gateway-has-two/data-model.md) - Configuration structure
+- [Spec Model](../specs/001-gateway-has-two/data-model.md) - Configuration structure
 - [Implementation Plan](../specs/001-gateway-has-two/plan.md) - Architecture and design decisions
 
 ## Examples

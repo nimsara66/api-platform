@@ -1,4 +1,4 @@
-# Data Model: SQLite Database Schema
+# Spec Model: SQLite Database Schema
 
 **Feature**: Database Migration from BBolt to SQLite
 **Branch**: `005-migrate-sqlite-db`
@@ -140,7 +140,7 @@ CREATE INDEX idx_kind ON deployments(kind);
    - Example: Only one "PetStore/v1" configuration can exist
 3. **Check Constraint**: `status IN ('pending', 'deployed', 'failed')`
 
-#### Sample Data
+#### Sample Spec
 
 ```sql
 INSERT INTO deployments (
@@ -313,7 +313,7 @@ func ValidateConfig(cfg *models.StoredAPIConfig) error {
     if cfg.GetAPIVersion() == "" {
         return fmt.Errorf("version is required")
     }
-    if cfg.Configuration.Data.Context == "" {
+    if cfg.Configuration.Spec.Context == "" {
         return fmt.Errorf("context is required")
     }
     if cfg.Configuration.Kind == "" {

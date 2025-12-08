@@ -190,7 +190,7 @@ gateway/
 - **Separate directories**: Each component is independently buildable with its own Makefile and Dockerfile, supporting the constraint that they must be independently deployable containers.
 - **Root-level docker compose**: Provides easy local development and testing of the complete system.
 
-**Data Flow Architecture**:
+**Spec Flow Architecture**:
 ```
 Startup:  Database → Load to In-Memory Maps → Generate Initial xDS Snapshot
 Runtime:  User Request → Validate → Update In-Memory Maps + Database → Generate xDS Snapshot → Push to Router

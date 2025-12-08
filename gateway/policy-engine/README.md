@@ -87,7 +87,7 @@ curl http://localhost:8000/api/v1/public/health
 - **Full Specification**: [Spec.md](Spec.md)
 - **Implementation Plan**: [specs/001-policy-engine/plan.md](specs/001-policy-engine/plan.md)
 - **Builder Design**: [BUILDER_DESIGN.md](BUILDER_DESIGN.md)
-- **Data Model**: [specs/001-policy-engine/data-model.md](specs/001-policy-engine/data-model.md)
+- **Spec Model**: [specs/001-policy-engine/data-model.md](specs/001-policy-engine/data-model.md)
 - **Quickstart Guide**: [specs/001-policy-engine/quickstart.md](specs/001-policy-engine/quickstart.md)
 - **Policy API Contracts**: [specs/001-policy-engine/contracts/policy-api.md](specs/001-policy-engine/contracts/policy-api.md)
 

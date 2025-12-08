@@ -61,7 +61,7 @@ gateway/gateway-controller/
 │   │   ├── parser.go            # YAML/JSON parsing
 │   │   └── validator.go         # API configuration validation
 │   ├── models/
-│   │   └── stored_config.go        # Data structures
+│   │   └── stored_config.go        # Spec structures
 │   ├── storage/
 │   │   ├── interface.go         # Storage abstraction
 │   │   ├── memory.go            # In-memory maps
@@ -270,7 +270,7 @@ docker compose -f docker compose.test.yaml down
 
 See [Testing Checklist](impls/testing-checklist.md) for comprehensive manual test scenarios.
 
-## Data Flow Architecture
+## Spec Flow Architecture
 
 ### Startup Sequence
 

@@ -1,0 +1,19 @@
+{
+  "version": "api-platform.wso2.com/v1",
+  "kind": "llm/provider",
+  "data": {
+    "name": "test-provider",
+    "version": "v1.0",
+    "template": "openai_v1.0",
+    "upstreams": [
+      {
+        "url": "https://api.openai.com",
+        "auth": {
+          "type": "api-key",
+          "header": "Authorization",
+          "value": "test-key"
+        }
+      }
+    ]
+  }
+}

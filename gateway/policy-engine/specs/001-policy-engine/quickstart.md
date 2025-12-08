@@ -509,7 +509,7 @@ hey -n 10000 -c 100 -m POST \
 - **Implementation Plan**: See `specs/001-policy-engine/plan.md`
 - **Builder Design**: See `BUILDER_DESIGN.md`
 - **Policy Interface Contracts**: See `specs/001-policy-engine/contracts/policy-api.md`
-- **Data Model**: See `specs/001-policy-engine/data-model.md`
+- **Spec Model**: See `specs/001-policy-engine/data-model.md`
 
 ---
 
