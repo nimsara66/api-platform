@@ -29,7 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/controlplane"
 	"gopkg.in/yaml.v3"
 
@@ -60,10 +59,9 @@ type APIServer struct {
 	logger               *zap.Logger
 	deploymentService    *utils.APIDeploymentService
 	mcpDeploymentService *utils.MCPDeploymentService
+	llmDeploymentService *utils.LLMDeploymentService
 	controlPlaneClient   controlplane.ControlPlaneClient
 	routerConfig         *config.RouterConfig
-	// LLM validation
-	llmValidator *config.LLMValidator
 }
 
 // NewAPIServer creates a new API server with dependencies
@@ -89,10 +87,9 @@ func NewAPIServer(
 		logger:               logger,
 		deploymentService:    utils.NewAPIDeploymentService(store, db, snapshotManager, validator),
 		mcpDeploymentService: utils.NewMCPDeploymentService(store, db, snapshotManager),
+		llmDeploymentService: utils.NewLLMDeploymentService(store, db, snapshotManager),
 		controlPlaneClient:   controlPlaneClient,
 		routerConfig:         routerConfig,
-		// Initialize LLM validator
-		llmValidator: config.NewLLMValidator(),
 	}
 
 	// Register status update callback
@@ -1108,107 +1105,30 @@ func (s *APIServer) CreateLLMProviderTemplate(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Error("Failed to read request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: "Failed to read request body",
-		})
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: "Failed to read request body"})
 		return
 	}
 
-	// Parse template configuration
-	contentType := c.GetHeader("Content-Type")
-	var llmTemplateConfig api.LLMProviderTemplate
-	err = s.parser.Parse(body, contentType, &llmTemplateConfig)
-	if err != nil {
-		log.Error("Failed to parse template configuration", zap.Error(err))
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: fmt.Sprintf("Failed to parse template configuration: %v", err),
-		})
-		return
-	}
-
-	// Validate template configuration
-	validationErrors := s.llmValidator.Validate(&llmTemplateConfig)
-	if len(validationErrors) > 0 {
-		log.Warn("Template validation failed",
-			zap.String("name", llmTemplateConfig.Data.Name),
-			zap.Int("error_count", len(validationErrors)))
-
-		apiErrors := make([]api.ValidationError, len(validationErrors))
-		for i, ve := range validationErrors {
-			apiErrors[i] = api.ValidationError{
-				Field:   &ve.Field,
-				Message: &ve.Message,
-			}
-		}
-
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: "Template validation failed",
-			Errors:  &apiErrors,
-		})
-		return
-	}
-
-	// Create stored template
-	storedTemplate := &models.StoredLLMProviderTemplate{
-		ID:            uuid.New().String(),
-		Configuration: llmTemplateConfig,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
-	}
-
-	// Save to database if persistent storage is enabled
-	if s.db != nil {
-		sqliteDB, ok := s.db.(*storage.SQLiteStorage)
-		if ok {
-			if err := sqliteDB.SaveLLMProviderTemplate(storedTemplate); err != nil {
-				if err.Error() == storage.ErrConflict.Error() || strings.Contains(err.Error(), "already exists") {
-					log.Warn("Template with same name already exists", zap.String("name", llmTemplateConfig.Data.Name))
-					c.JSON(http.StatusConflict, api.ErrorResponse{
-						Status:  "error",
-						Message: fmt.Sprintf("Template with name '%s' already exists", llmTemplateConfig.Data.Name),
-					})
-					return
-				}
-				log.Error("Failed to save template to database", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-					Status:  "error",
-					Message: "Failed to save template to database",
-				})
-				return
-			}
-		}
-	}
-
-	// Add to in-memory store
-	if err := s.store.AddTemplate(storedTemplate); err != nil {
-		log.Error("Failed to add template to in-memory store", zap.Error(err))
-		c.JSON(http.StatusConflict, api.ErrorResponse{
-			Status:  "error",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	log.Info("LLM provider template created successfully",
-		zap.String("id", storedTemplate.ID),
-		zap.String("name", storedTemplate.GetName()))
-
-	id, _ := uuidToOpenAPIUUID(storedTemplate.ID)
-	c.JSON(http.StatusCreated, api.LLMProviderTemplateCreateResponse{
-		Status:    stringPtr("success"),
-		Message:   stringPtr("LLM provider template created successfully"),
-		Id:        id,
-		CreatedAt: timePtr(storedTemplate.CreatedAt),
+	storedTemplate, err := s.llmDeploymentService.CreateLLMProviderTemplate(utils.LLMTemplateParams{
+		Spec:        body,
+		ContentType: c.GetHeader("Content-Type"),
+		Logger:      log,
 	})
+	if err != nil {
+		log.Error("Failed to create LLM provider template", zap.Error(err))
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: err.Error()})
+		return
+	}
+
+	log.Info("LLM provider template created successfully", zap.String("id", storedTemplate.ID), zap.String("name", storedTemplate.GetName()))
+	id, _ := uuidToOpenAPIUUID(storedTemplate.ID)
+	c.JSON(http.StatusCreated, api.LLMProviderTemplateCreateResponse{Status: stringPtr("success"), Message: stringPtr("LLM provider template created successfully"), Id: id, CreatedAt: timePtr(storedTemplate.CreatedAt)})
 }
 
 // ListLLMProviderTemplates implements ServerInterface.ListLLMProviderTemplates
 // (GET /llm-providers/templates)
 func (s *APIServer) ListLLMProviderTemplates(c *gin.Context) {
-	templates := s.store.GetAllTemplates()
+	templates := s.llmDeploymentService.ListLLMProviderTemplates()
 
 	items := make([]api.LLMProviderTemplateListItem, len(templates))
 	for i, tmpl := range templates {
@@ -1233,7 +1153,7 @@ func (s *APIServer) ListLLMProviderTemplates(c *gin.Context) {
 func (s *APIServer) GetLLMProviderTemplateByName(c *gin.Context, name string) {
 	log := middleware.GetLogger(c, s.logger)
 
-	template, err := s.store.GetTemplateByName(name)
+	template, err := s.llmDeploymentService.GetLLMProviderTemplateByName(name)
 	if err != nil {
 		log.Warn("LLM provider template not found", zap.String("name", name))
 		c.JSON(http.StatusNotFound, api.ErrorResponse{
@@ -1279,17 +1199,6 @@ func (s *APIServer) GetLLMProviderTemplateByName(c *gin.Context, name string) {
 func (s *APIServer) UpdateLLMProviderTemplate(c *gin.Context, name string) {
 	log := middleware.GetLogger(c, s.logger)
 
-	// Check if template exists
-	existingTemplate, err := s.store.GetTemplateByName(name)
-	if err != nil {
-		log.Warn("LLM provider template not found for update", zap.String("name", name))
-		c.JSON(http.StatusNotFound, api.ErrorResponse{
-			Status:  "error",
-			Message: fmt.Sprintf("Template with name '%s' not found", name),
-		})
-		return
-	}
-
 	// Read request body
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -1301,81 +1210,27 @@ func (s *APIServer) UpdateLLMProviderTemplate(c *gin.Context, name string) {
 		return
 	}
 
-	// Parse template configuration
-	contentType := c.GetHeader("Content-Type")
-	var llmTemplateConfig api.LLMProviderTemplate
-	err = s.parser.Parse(body, contentType, &llmTemplateConfig)
+	updated, err := s.llmDeploymentService.UpdateLLMProviderTemplate(name, utils.LLMTemplateParams{
+		Spec:        body,
+		ContentType: c.GetHeader("Content-Type"),
+		Logger:      log,
+	})
 	if err != nil {
-		log.Error("Failed to parse template configuration", zap.Error(err))
+		log.Error("Failed to update LLM provider template", zap.Error(err))
 		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: fmt.Sprintf("Failed to parse template configuration: %v", err),
-		})
-		return
-	}
-
-	// Validate template configuration
-	validationErrors := s.llmValidator.Validate(&llmTemplateConfig)
-	if len(validationErrors) > 0 {
-		log.Warn("Template validation failed",
-			zap.String("name", llmTemplateConfig.Data.Name),
-			zap.Int("error_count", len(validationErrors)))
-
-		apiErrors := make([]api.ValidationError, len(validationErrors))
-		for i, ve := range validationErrors {
-			apiErrors[i] = api.ValidationError{
-				Field:   &ve.Field,
-				Message: &ve.Message,
-			}
-		}
-
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: "Template validation failed",
-			Errors:  &apiErrors,
-		})
-		return
-	}
-
-	// Update stored template
-	existingTemplate.Configuration = llmTemplateConfig
-	existingTemplate.UpdatedAt = time.Now()
-
-	// Update in database if persistent storage is enabled
-	if s.db != nil {
-		sqliteDB, ok := s.db.(*storage.SQLiteStorage)
-		if ok {
-			if err := sqliteDB.UpdateLLMProviderTemplate(existingTemplate); err != nil {
-				log.Error("Failed to update template in database", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-					Status:  "error",
-					Message: "Failed to update template in database",
-				})
-				return
-			}
-		}
-	}
-
-	// Update in-memory store
-	if err := s.store.UpdateTemplate(existingTemplate); err != nil {
-		log.Error("Failed to update template in memory", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Status:  "error",
 			Message: err.Error(),
 		})
 		return
 	}
 
-	log.Info("LLM provider template updated successfully",
-		zap.String("id", existingTemplate.ID),
-		zap.String("name", existingTemplate.GetName()))
-
-	id, _ := uuidToOpenAPIUUID(existingTemplate.ID)
+	log.Info("LLM provider template updated successfully", zap.String("id", updated.ID), zap.String("name", updated.GetName()))
+	id, _ := uuidToOpenAPIUUID(updated.ID)
 	c.JSON(http.StatusOK, api.LLMProviderTemplateUpdateResponse{
 		Status:    stringPtr("success"),
 		Message:   stringPtr("LLM provider template updated successfully"),
 		Id:        id,
-		UpdatedAt: timePtr(existingTemplate.UpdatedAt),
+		UpdatedAt: timePtr(updated.UpdatedAt),
 	})
 }
 
@@ -1383,52 +1238,14 @@ func (s *APIServer) UpdateLLMProviderTemplate(c *gin.Context, name string) {
 // (DELETE /llm-providers/templates/{name})
 func (s *APIServer) DeleteLLMProviderTemplate(c *gin.Context, name string) {
 	log := middleware.GetLogger(c, s.logger)
-
-	// Get template to delete
-	template, err := s.store.GetTemplateByName(name)
+	deleted, err := s.llmDeploymentService.DeleteLLMProviderTemplate(name)
 	if err != nil {
 		log.Warn("LLM provider template not found for deletion", zap.String("name", name))
-		c.JSON(http.StatusNotFound, api.ErrorResponse{
-			Status:  "error",
-			Message: fmt.Sprintf("Template with name '%s' not found", name),
-		})
+		c.JSON(http.StatusNotFound, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("Template with name '%s' not found", name)})
 		return
 	}
-
-	// Delete from database if persistent storage is enabled
-	if s.db != nil {
-		sqliteDB, ok := s.db.(*storage.SQLiteStorage)
-		if ok {
-			if err := sqliteDB.DeleteLLMProviderTemplate(template.ID); err != nil {
-				log.Error("Failed to delete template from database", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-					Status:  "error",
-					Message: "Failed to delete template from database",
-				})
-				return
-			}
-		}
-	}
-
-	// Delete from in-memory store
-	if err := s.store.DeleteTemplate(template.ID); err != nil {
-		log.Error("Failed to delete template from memory", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Status:  "error",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	log.Info("LLM provider template deleted successfully",
-		zap.String("id", template.ID),
-		zap.String("name", name))
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "LLM provider template deleted successfully",
-		"id":      template.ID,
-	})
+	log.Info("LLM provider template deleted successfully", zap.String("id", deleted.ID), zap.String("name", name))
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "LLM provider template deleted successfully", "id": deleted.ID})
 }
 
 // ========================================
@@ -1450,75 +1267,56 @@ func (s *APIServer) CreateLLMProvider(c *gin.Context) {
 		})
 		return
 	}
-	contentType := c.GetHeader("Content-Type")
-	var llmProviderConfig api.LLMProvider
-	if err := s.parser.Parse(body, contentType, &llmProviderConfig); err != nil {
-		log.Error("Failed to parse provider configuration", zap.Error(err))
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: fmt.Sprintf("Failed to parse provider configuration: %v", err),
-		})
-		return
-	}
-	validationErrors := s.llmValidator.Validate(&llmProviderConfig)
-	if len(validationErrors) > 0 {
-		log.Warn("Provider validation failed",
-			zap.String("name", llmProviderConfig.Data.Name),
-			zap.String("version", llmProviderConfig.Data.Version),
-			zap.Int("error_count", len(validationErrors)))
 
-		apiErrors := make([]api.ValidationError, len(validationErrors))
-		for i, ve := range validationErrors {
-			apiErrors[i] = api.ValidationError{
-				Field:   &ve.Field,
-				Message: &ve.Message,
-			}
-		}
-
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: "Provider validation failed",
-			Errors:  &apiErrors,
-		})
-		return
-	}
-	// Phase 3: Transform to API config
-	apiConfig, err := s.transformer.Transform(&llmProviderConfig)
-	if err != nil {
-		log.Error("Failed to transform LLM provider", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("Transformation failed: %v", err)})
-		return
-	}
-	// Deploy via API deployment flow, carrying original configuration
-	corrID := middleware.GetCorrelationID(c)
-	deployData, _ := yaml.Marshal(apiConfig) // reuse parser path by marshaling back to YAML
-	result, err := s.deploymentService.DeployAPIConfiguration(utils.APIDeploymentParams{
-		Data:           deployData,
-		ContentType:    "application/yaml",
-		APIID:          "",
-		CorrelationID:  corrID,
-		Logger:         log,
-		OriginalConfig: llmProviderConfig,
+	// Delegate to service which parses/validates/transforms and persists
+	stored, err := s.llmDeploymentService.CreateLLMProvider(utils.LLMDeploymentParams{
+		Data:        body,
+		ContentType: c.GetHeader("Content-Type"),
+		Logger:      log,
 	})
 	if err != nil {
-		log.Error("Failed to deploy transformed API", zap.Error(err))
+		log.Error("Failed to create LLM provider", zap.Error(err))
 		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: err.Error()})
 		return
 	}
-	id, _ := uuidToOpenAPIUUID(result.StoredConfig.ID)
-	c.JSON(http.StatusCreated, api.LLMProviderCreateResponse{Status: stringPtr("success"), Message: stringPtr("LLM provider created and deployed successfully"), Id: id, CreatedAt: timePtr(result.StoredConfig.CreatedAt)})
+
+	log.Info("LLM provider created successfully", zap.String("id", stored.ID), zap.String("name", stored.Configuration.Spec.Name))
+	id, _ := uuidToOpenAPIUUID(stored.ID)
+	c.JSON(http.StatusCreated, api.LLMProviderCreateResponse{Status: stringPtr("success"), Message: stringPtr("LLM provider created successfully"), Id: id, CreatedAt: timePtr(stored.CreatedAt)})
 }
 
 // ListLLMProviders implements ServerInterface.ListLLMProviders
 // (GET /llm-providers)
 func (s *APIServer) ListLLMProviders(c *gin.Context) {
-	// TODO Phase 3: Filter api_configs by original_kind = "llm/provider"
-	// For now, return empty list
-	c.JSON(http.StatusOK, gin.H{
-		"status":    "success",
-		"count":     0,
-		"providers": []interface{}{},
-	})
+	log := middleware.GetLogger(c, s.logger)
+	configs := s.llmDeploymentService.ListLLMProviders()
+
+	items := make([]api.LLMProviderListItem, len(configs))
+	for i, cfg := range configs {
+		id, _ := uuidToOpenAPIUUID(cfg.ID)
+		status := api.LLMProviderListItemStatus(cfg.Status)
+
+		// Convert SourceConfiguration to LLMProviderConfiguration
+		var prov api.LLMProviderConfiguration
+		j, _ := json.Marshal(cfg.SourceConfiguration)
+		if err := json.Unmarshal(j, &prov); err != nil {
+			log.Error("Failed to unmarshal stored LLM provider configuration", zap.String("id", cfg.ID), zap.Error(err))
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: "Failed to get stored LLM provider configuration"})
+			return
+		}
+
+		items[i] = api.LLMProviderListItem{
+			Id:        id,
+			Name:      stringPtr(prov.Spec.Name),
+			Version:   stringPtr(prov.Spec.Version),
+			Template:  stringPtr(prov.Spec.Template),
+			Status:    &status,
+			CreatedAt: timePtr(cfg.CreatedAt),
+			UpdatedAt: timePtr(cfg.UpdatedAt),
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "count": len(items), "providers": items})
 }
 
 // GetLLMProviderByNameVersion implements ServerInterface.GetLLMProviderByNameVersion
@@ -1526,15 +1324,64 @@ func (s *APIServer) ListLLMProviders(c *gin.Context) {
 func (s *APIServer) GetLLMProviderByNameVersion(c *gin.Context, name string, version string) {
 	log := middleware.GetLogger(c, s.logger)
 
-	// TODO Phase 3: Retrieve from api_configs and return original configuration
-	log.Warn("LLM provider retrieval not yet implemented",
-		zap.String("name", name),
-		zap.String("version", version))
+	cfg, err := s.llmDeploymentService.GetLLMProviderByNameVersion(name, version)
+	if err != nil {
+		log.Warn("LLM provider configuration not found", zap.String("name", name), zap.String("version", version))
+		c.JSON(http.StatusNotFound, api.ErrorResponse{Status: "error", Message: fmt.Sprintf("LLM provider configuration with name '%s' and version '%s' not found", name, version)})
+		return
+	}
 
-	c.JSON(http.StatusNotFound, api.ErrorResponse{
-		Status:  "error",
-		Message: fmt.Sprintf("Provider with name '%s' and version '%s' not found", name, version),
-	})
+	// Convert SourceConfiguration back to LLMProviderConfiguration
+	var prov api.LLMProviderConfiguration
+	j, _ := json.Marshal(cfg.SourceConfiguration)
+	if err := json.Unmarshal(j, &prov); err != nil {
+		log.Error("Failed to unmarshal stored LLM provider configuration", zap.String("id", cfg.ID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: "Failed to get stored LLM provider configuration"})
+		return
+	}
+
+	id, _ := uuidToOpenAPIUUID(cfg.ID)
+	resp := api.LLMProviderDetailResponse{Status: stringPtr("success")}
+	resp.Provider = &struct {
+		Configuration    *api.LLMProviderConfiguration                          "json:\"configuration,omitempty\" yaml:\"configuration,omitempty\""
+		DeploymentStatus *api.LLMProviderDetailResponseProviderDeploymentStatus "json:\"deployment_status,omitempty\" yaml:\"deployment_status,omitempty\""
+		Id               *openapi_types.UUID                                    "json:\"id,omitempty\" yaml:\"id,omitempty\""
+		Metadata         *struct {
+			CreatedAt  *time.Time `json:"created_at,omitempty" yaml:"created_at,omitempty"`
+			DeployedAt *time.Time `json:"deployed_at,omitempty" yaml:"deployed_at,omitempty"`
+			UpdatedAt  *time.Time `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
+		} `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	}{
+		Configuration: &prov,
+		Id:            id,
+		Metadata: &struct {
+			CreatedAt  *time.Time `json:"created_at,omitempty" yaml:"created_at,omitempty"`
+			DeployedAt *time.Time `json:"deployed_at,omitempty" yaml:"deployed_at,omitempty"`
+			UpdatedAt  *time.Time `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
+		}{
+			CreatedAt: &cfg.CreatedAt,
+			UpdatedAt: &cfg.UpdatedAt,
+		},
+	}
+
+	if cfg.DeployedAt != nil {
+		resp.Provider.Metadata.DeployedAt = cfg.DeployedAt
+	}
+
+	// Map deployment status
+	sw := string(cfg.Status)
+	if sw == string(models.StatusDeployed) {
+		st := api.LLMProviderDetailResponseProviderDeploymentStatusDeployed
+		resp.Provider.DeploymentStatus = &st
+	} else if sw == string(models.StatusFailed) {
+		st := api.LLMProviderDetailResponseProviderDeploymentStatusFailed
+		resp.Provider.DeploymentStatus = &st
+	} else {
+		st := api.LLMProviderDetailResponseProviderDeploymentStatusPending
+		resp.Provider.DeploymentStatus = &st
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // UpdateLLMProvider implements ServerInterface.UpdateLLMProvider
@@ -1546,75 +1393,43 @@ func (s *APIServer) UpdateLLMProvider(c *gin.Context, name string, version strin
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Error("Failed to read request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: "Failed to read request body",
-		})
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: "Failed to read request body"})
 		return
 	}
 
-	// Parse provider configuration
-	contentType := c.GetHeader("Content-Type")
-	var llmProviderConfig api.LLMProvider
-	err = s.parser.Parse(body, contentType, &llmProviderConfig)
-	if err != nil {
-		log.Error("Failed to parse provider configuration", zap.Error(err))
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: fmt.Sprintf("Failed to parse provider configuration: %v", err),
-		})
-		return
-	}
+	// Get correlation ID
+	correlationID := middleware.GetCorrelationID(c)
 
-	// Validate provider configuration
-	validationErrors := s.llmValidator.Validate(&llmProviderConfig)
-	if len(validationErrors) > 0 {
-		log.Warn("Provider validation failed",
-			zap.String("name", llmProviderConfig.Data.Name),
-			zap.String("version", llmProviderConfig.Data.Version),
-			zap.Int("error_count", len(validationErrors)))
-
-		apiErrors := make([]api.ValidationError, len(validationErrors))
-		for i, ve := range validationErrors {
-			apiErrors[i] = api.ValidationError{
-				Field:   &ve.Field,
-				Message: &ve.Message,
-			}
-		}
-
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{
-			Status:  "error",
-			Message: "Provider validation failed",
-			Errors:  &apiErrors,
-		})
-		return
-	}
-
-	// TODO Phase 2/3: Transform and update
-	log.Info("LLM provider update received (transformation pending)",
-		zap.String("name", name),
-		zap.String("version", version))
-
-	c.JSON(http.StatusNotFound, api.ErrorResponse{
-		Status:  "error",
-		Message: fmt.Sprintf("Provider with name '%s' and version '%s' not found", name, version),
+	// Delegate to service update wrapper
+	updated, err := s.llmDeploymentService.UpdateLLMProvider(name, version, utils.LLMDeploymentParams{
+		Data:          body,
+		ContentType:   c.GetHeader("Content-Type"),
+		CorrelationID: correlationID,
+		Logger:        log,
 	})
+	if err != nil {
+		log.Error("Failed to update LLM provider configuration", zap.Error(err))
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: err.Error()})
+		return
+	}
+
+	id, _ := uuidToOpenAPIUUID(updated.ID)
+	c.JSON(http.StatusOK, api.LLMProviderUpdateResponse{Id: id, Message: stringPtr("LLM provider updated successfully"), Status: stringPtr("success"), UpdatedAt: timePtr(updated.UpdatedAt)})
 }
 
 // DeleteLLMProvider implements ServerInterface.DeleteLLMProvider
 // (DELETE /llm-providers/{name}/{version})
 func (s *APIServer) DeleteLLMProvider(c *gin.Context, name string, version string) {
 	log := middleware.GetLogger(c, s.logger)
+	correlationID := middleware.GetCorrelationID(c)
 
-	// TODO Phase 3: Delete from api_configs where original_kind = "llm/provider"
-	log.Warn("LLM provider deletion not yet implemented",
-		zap.String("name", name),
-		zap.String("version", version))
+	if err := s.llmDeploymentService.DeleteLLMProvider(name, version, correlationID, log); err != nil {
+		log.Warn("Failed to delete LLM provider configuration", zap.String("name", name), zap.String("version", version), zap.Error(err))
+		c.JSON(http.StatusNotFound, api.ErrorResponse{Status: "error", Message: err.Error()})
+		return
+	}
 
-	c.JSON(http.StatusNotFound, api.ErrorResponse{
-		Status:  "error",
-		Message: fmt.Sprintf("Provider with name '%s' and version '%s' not found", name, version),
-	})
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "LLM provider deleted successfully", "name": name, "version": version})
 }
 
 // GetConfigDump implements the GET /config_dump endpoint

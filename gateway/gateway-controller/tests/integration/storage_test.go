@@ -61,7 +61,7 @@ func createTestConfig(name, version string) *models.StoredConfig {
 	return &models.StoredConfig{
 		ID: uuid.New().String(),
 		Configuration: api.APIConfiguration{
-			Version: api.ApiPlatformWso2Comv1,
+			Version: api.APIConfigurationVersion(api.ApiPlatformWso2Comv1),
 			Kind:    api.Httprest,
 			Spec: api.APIConfigData{
 				Name:    name,
@@ -72,7 +72,7 @@ func createTestConfig(name, version string) *models.StoredConfig {
 				},
 				Operations: []api.Operation{
 					{
-						Method: api.GET,
+						Method: api.OperationMethodGET,
 						Path:   "/test",
 					},
 				},

@@ -37,13 +37,20 @@ func NewLLMProviderTransformer(store *storage.ConfigStore) *LLMProviderTransform
 }
 
 func (t *LLMProviderTransformer) Transform(input any, output *api.APIConfiguration) *api.APIConfiguration {
-	provider, ok := input.(*api.LLMProvider)
-	if !ok {
+	providerCfg, ok := input.(*api.LLMProviderConfiguration)
+	if !ok || providerCfg == nil {
 		return nil
 	}
 
+	// provider.Spec is a pointer to LLMProviderSpec
+	if providerCfg.Spec == nil {
+		return nil
+	}
+
+	provider := providerCfg.Spec
+
 	// 1) Retrieve the referenced template from in-memory
-	tmpl, err := t.store.GetTemplateByName(provider.Data.Template)
+	tmpl, err := t.store.GetTemplateByName(provider.Template)
 	if err != nil {
 		return nil
 	}
@@ -51,9 +58,9 @@ func (t *LLMProviderTransformer) Transform(input any, output *api.APIConfigurati
 	// 2) Convert template's OpenAPI spec into a base APIConfiguration
 	apiCfg, err := buildAPIConfigFromOpenAPI(
 		tmpl.Configuration.Data.Openapi,
-		provider.Data.Name,
-		provider.Data.Version,
-		provider.Data.Name, // use name as seed for context derivation if servers missing
+		provider.Name,
+		provider.Version,
+		provider.Name, // use name as seed for context derivation if servers missing
 	)
 	if err != nil {
 		return nil
@@ -61,16 +68,16 @@ func (t *LLMProviderTransformer) Transform(input any, output *api.APIConfigurati
 
 	// 3) Merge LLM Provider specifics
 	// 3a) Set upstreams from provider
-	apiCfg.Spec.Upstreams = make([]api.Upstream, 0, len(provider.Data.Upstreams))
-	for _, u := range provider.Data.Upstreams {
+	apiCfg.Spec.Upstreams = make([]api.Upstream, 0, len(provider.Upstreams))
+	for _, u := range provider.Upstreams {
 		apiCfg.Spec.Upstreams = append(apiCfg.Spec.Upstreams, api.Upstream{Url: u.Url})
 	}
 
 	// 3b) Apply access control (filter operations)
-	applyAccessControl(provider.Data.AccessControl, &apiCfg.Spec.Operations)
+	applyAccessControl(provider.AccessControl, &apiCfg.Spec.Operations)
 
 	// 3c) Attach policies from provider to relevant operations
-	attachPolicies(provider.Data.Policies, &apiCfg.Spec.Operations)
+	attachPolicies(provider.Policies, &apiCfg.Spec.Operations)
 
 	return apiCfg
 }
@@ -367,14 +374,14 @@ func firstNonEmpty(vals ...string) string {
 }
 
 // Validate that the provider input is adequate before transformation
-func validateProviderForTransform(p *api.LLMProvider) error {
+func validateProviderForTransform(p *api.LLMProviderConfiguration) error {
 	if p == nil {
 		return errors.New("provider cannot be nil")
 	}
-	if strings.TrimSpace(p.Data.Name) == "" || strings.TrimSpace(p.Data.Version) == "" {
+	if p.Spec == nil || strings.TrimSpace(p.Spec.Name) == "" || strings.TrimSpace(p.Spec.Version) == "" {
 		return errors.New("provider name and version are required")
 	}
-	if strings.TrimSpace(p.Data.Template) == "" {
+	if p.Spec == nil || strings.TrimSpace(p.Spec.Template) == "" {
 		return errors.New("provider template is required")
 	}
 	return nil

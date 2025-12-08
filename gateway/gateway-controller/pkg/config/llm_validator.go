@@ -42,7 +42,7 @@ func NewLLMValidator() *LLMValidator {
 // Validate performs comprehensive validation on a configuration
 // It uses type switching to handle different LLM configuration types:
 // - LLMProviderTemplate (for /llm-providers/templates)
-// - LLMProvider (for /llm-providers)
+// - LLMProviderConfiguration (for /llm-providers)
 // - LLMProxy (for /llm-proxies) - future implementation
 func (v *LLMValidator) Validate(config interface{}) []ValidationError {
 	// Type switch to handle different LLM configuration types
@@ -51,9 +51,9 @@ func (v *LLMValidator) Validate(config interface{}) []ValidationError {
 		return v.validateLLMProviderTemplate(cfg)
 	case api.LLMProviderTemplate:
 		return v.validateLLMProviderTemplate(&cfg)
-	case *api.LLMProvider:
+	case *api.LLMProviderConfiguration:
 		return v.validateLLMProvider(cfg)
-	case api.LLMProvider:
+	case api.LLMProviderConfiguration:
 		return v.validateLLMProvider(&cfg)
 	// Future: Add cases for LLMProxy
 	// case *api.LLMProxy:
@@ -176,7 +176,7 @@ func (v *LLMValidator) validateTokenIdentifier(fieldPrefix string, identifier *a
 }
 
 // validateLLMProvider validates an LLM provider configuration
-func (v *LLMValidator) validateLLMProvider(provider *api.LLMProvider) []ValidationError {
+func (v *LLMValidator) validateLLMProvider(provider *api.LLMProviderConfiguration) []ValidationError {
 	var errors []ValidationError
 
 	// Validate version
@@ -205,14 +205,21 @@ func (v *LLMValidator) validateLLMProvider(provider *api.LLMProvider) []Validati
 		})
 	}
 
-	// Validate data section
-	errors = append(errors, v.validateProviderData(&provider.Data)...)
+	// Validate spec section
+	if provider.Spec == nil {
+		errors = append(errors, ValidationError{
+			Field:   "spec",
+			Message: "Spec (data) is required",
+		})
+	} else {
+		errors = append(errors, v.validateProviderData(provider.Spec)...)
+	}
 
 	return errors
 }
 
 // validateProviderData validates the data section of an LLM provider
-func (v *LLMValidator) validateProviderData(data *api.LLMProviderData) []ValidationError {
+func (v *LLMValidator) validateProviderData(data *api.LLMProviderSpec) []ValidationError {
 	var errors []ValidationError
 
 	// Validate name

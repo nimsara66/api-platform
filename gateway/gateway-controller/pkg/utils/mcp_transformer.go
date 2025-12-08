@@ -38,17 +38,17 @@ func protocolVersionComparator(base, current string) bool {
 func addMCPSpecificOperations(mcpConfig *api.MCPProxyConfiguration) []api.Operation {
 	operations := []api.Operation{
 		{
-			Method:   api.GET,
+			Method:   api.OperationMethodGET,
 			Path:     constants.MCP_RESOURCE_PATH,
 			Policies: nil,
 		},
 		{
-			Method:   api.POST,
+			Method:   api.OperationMethodPOST,
 			Path:     constants.MCP_RESOURCE_PATH,
 			Policies: nil,
 		},
 		{
-			Method:   api.DELETE,
+			Method:   api.OperationMethodDELETE,
 			Path:     constants.MCP_RESOURCE_PATH,
 			Policies: nil,
 		},
@@ -63,7 +63,7 @@ func addMCPSpecificOperations(mcpConfig *api.MCPProxyConfiguration) []api.Operat
 	if protocolVersionComparator(constants.SPEC_VERSION_2025_JUNE, mcpSpecVersion) {
 		operations = append(operations,
 			api.Operation{
-				Method:   api.GET,
+				Method:   api.OperationMethodGET,
 				Path:     constants.MCP_PRM_RESOURCE_PATH,
 				Policies: nil,
 			},
@@ -79,7 +79,7 @@ func (t *MCPTransformer) Transform(input any, output *api.APIConfiguration) *api
 	if !ok || mcpConfig == nil {
 		return output
 	}
-	output.Version = api.ApiPlatformWso2Comv1
+	output.Version = api.APIConfigurationVersion(api.ApiPlatformWso2Comv1)
 	output.Kind = api.Httprest
 	spec := api.APIConfigData{
 		Name:       mcpConfig.Spec.Name,

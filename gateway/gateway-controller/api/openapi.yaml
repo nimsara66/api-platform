@@ -1,4 +1,4 @@
-openapi: 3.0.3
+cd openapi: 3.0.3
 info:
   title: Gateway Controller API
   description: |
@@ -763,10 +763,10 @@ paths:
         content:
           application/yaml:
             schema:
-              $ref: '#/components/schemas/LLMProvider'
+              $ref: '#/components/schemas/LLMProviderConfiguration'
           application/json:
             schema:
-              $ref: '#/components/schemas/LLMProvider'
+              $ref: '#/components/schemas/LLMProviderConfiguration'
       responses:
         '201':
           description: LLM provider created and deployed successfully
@@ -896,10 +896,10 @@ paths:
         content:
           application/yaml:
             schema:
-              $ref: '#/components/schemas/LLMProvider'
+              $ref: '#/components/schemas/LLMProviderConfiguration'
           application/json:
             schema:
-              $ref: '#/components/schemas/LLMProvider'
+              $ref: '#/components/schemas/LLMProviderConfiguration'
       responses:
         '200':
           description: LLM provider updated successfully
@@ -2114,7 +2114,7 @@ components:
               example: 221599
 
     # LLM Provider Schemas
-    LLMProvider:
+    LLMProviderConfiguration:
       type: object
       required:
         - version
@@ -2133,10 +2133,10 @@ components:
           example: llm/provider
           enum:
             - llm/provider
-        data:
-          $ref: '#/components/schemas/LLMProviderData'
+        spec:
+          $ref: '#/components/schemas/LLMProviderSpec'
 
-    LLMProviderData:
+    LLMProviderSpec:
       type: object
       required:
         - name
@@ -2434,7 +2434,7 @@ components:
               format: uuid
               example: 550e8400-e29b-41d4-a716-446655440000
             configuration:
-              $ref: '#/components/schemas/LLMProvider'
+              $ref: '#/components/schemas/LLMProviderConfiguration'
             deployment_status:
               type: string
               enum:

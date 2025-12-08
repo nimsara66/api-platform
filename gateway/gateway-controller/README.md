@@ -318,7 +318,7 @@ Example:
 DELETE /apis/Weather%20API/v1.0
 ```
 
-## Data Storage
+## Spec Storage
 
 The Gateway-Controller uses SQLite (embedded relational database) for persistent storage of API configurations.
 
@@ -477,7 +477,7 @@ gateway-controller/
 │   │   ├── parser.go         # YAML/JSON parsing
 │   │   └── validator.go      # Configuration validation
 │   ├── models/
-│   │   └── stored_config.go     # Data structures
+│   │   └── stored_config.go     # Spec structures
 │   ├── storage/
 │   │   ├── interface.go      # Storage abstraction
 │   │   ├── memory.go         # In-memory cache

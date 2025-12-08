@@ -114,7 +114,7 @@ INFO    Generating initial policy xDS snapshot
 INFO    Starting Policy xDS server    {"port": 18001}
 ```
 
-### Policy Data Structure
+### Policy Spec Structure
 
 Policies follow this JSON structure:
 
@@ -278,7 +278,7 @@ logging:
   level: debug
 ```
 
-## Sample Data
+## Sample Spec
 
 A sample policy configuration is provided in `data/sample-policy.json` for testing and reference.
 
