@@ -49,20 +49,20 @@ CREATE INDEX IF NOT EXISTS idx_kind ON deployments(kind);
 CREATE TABLE IF NOT EXISTS certificates (
     -- Primary identifier (UUID)
     id TEXT PRIMARY KEY,
-    
+
     -- Human-readable name for the certificate
     name TEXT NOT NULL UNIQUE,
-    
+
     -- PEM-encoded certificate(s) as BLOB
     certificate BLOB NOT NULL,
-    
+
     -- Certificate metadata (extracted from first cert in bundle)
     subject TEXT NOT NULL,
     issuer TEXT NOT NULL,
     not_before TIMESTAMP NOT NULL,
     not_after TIMESTAMP NOT NULL,
     cert_count INTEGER NOT NULL DEFAULT 1,
-    
+
     -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -82,6 +82,25 @@ CREATE TABLE IF NOT EXISTS deployment_configs (
     source_configuration TEXT,          -- JSON-serialized SourceConfiguration
     FOREIGN KEY(id) REFERENCES deployments(id) ON DELETE CASCADE
 );
+
+-- LLM Provider Templates table (added in schema version 3)
+CREATE TABLE IF NOT EXISTS llm_provider_templates (
+    -- Primary identifier (UUID)
+    id TEXT PRIMARY KEY,
+
+    -- Template name (must be unique)
+    name TEXT NOT NULL UNIQUE,
+
+    -- Full template configuration as JSON
+    configuration TEXT NOT NULL,
+
+    -- Timestamps
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for fast name lookups
+CREATE INDEX IF NOT EXISTS idx_template_name ON llm_provider_templates(name);
 
 -- Set schema version to 3
 PRAGMA user_version = 3;

@@ -1,0 +1,90 @@
+version: api-platform.wso2.com/v1
+kind: llm/provider
+data:
+  name: wso2-openai-provider
+  version: v1.0
+  template: openai_v1.0
+  upstreams:
+    - url: https://api.openai.com/v1
+      auth:
+        type: api-key
+        header: Authorization
+        value: secret-petstore-api-key-123
+  accessControl:
+    mode: deny_all
+    exceptions:
+      - path: /chat/completions
+        methods: [POST]
+      - path: /v1/models
+        methods: [GET]
+      - path: /v1/models/{modelId}
+        methods: [GET]
+  policies:
+    budgetControl:
+      - path: /chat/completions
+        methods: [POST]
+        requests:
+          count: 1000
+          unit: min
+        tokens:
+          promptTokens:
+            count: 30000
+            unit: min
+          completionTokens:
+            count: 20000
+            unit: min
+          totalTokens:
+            count: 50000
+            unit: min
+        cost:
+          amount: 10
+          unit: min
+      - path: /embeddings
+        methods: [POST]
+        requests:
+          count: 10000
+          unit: min
+        tokens:
+          totalTokens:
+            count: 500000
+            unit: min
+      - path: /
+        methods: [POST]
+        requests:
+          count: 100
+          unit: min
+        tokens:
+          totalTokens:
+            count: 5000
+            unit: min
+    PII:
+      - path: /chat/completions
+        methods: [POST]
+        params:
+          name:
+            type: string
+            value: PII Anonymizer
+          jsonPath:
+            type: string
+            value: $.messages[-1].content
+
+      - path: /completions
+        methods: [POST]
+        params:
+          name:
+            type: string
+            value: PII Anonymizer
+          jsonPath:
+            type: string
+            value: $.content
+
+    SemanticPromptGuardrail:
+      - path: /chat/completions
+        methods: [POST]
+        params:
+          name:
+            type: string
+            value: Semantic Prompt Guardrail
+          jsonPath:
+            type: string
+            value: $.messages[-1].content
