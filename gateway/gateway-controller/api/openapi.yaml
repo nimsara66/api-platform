@@ -1125,7 +1125,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: Handle of the LLM provider
+          description: Identifier of the LLM provider
           schema:
             type: string
           example: wso2-openai-provider
@@ -1233,6 +1233,251 @@ paths:
                   id:
                     type: string
                     example: wso2-openai
+        '404':
+          description: LLM provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /llm-proxies:
+    post:
+      summary: Create a new LLM proxy
+      description: |
+        Deploy a new LLM proxy configuration. The proxy defines how to interact
+        with an LLM provider deployed in the gateway, including authentication, and policies.
+      operationId: createLLMProxy
+      tags:
+        - LLM Provider Management
+      requestBody:
+        required: true
+        description: LLM proxy configuration in YAML or JSON format
+        content:
+          application/yaml:
+            schema:
+              $ref: '#/components/schemas/LLMProxyConfiguration'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LLMProxyConfiguration'
+      responses:
+        '201':
+          description: LLM provider created and deployed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LLMProviderCreateResponse'
+        '400':
+          description: Invalid configuration (validation failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict - Proxy with same name and version already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List all LLM proxies
+      description: Retrieve a list of all LLM proxies
+      operationId: listLLMProxies
+      tags:
+        - LLM Provider Management
+      parameters:
+        - name: name
+          in: query
+          required: false
+          description: Filter by LLM proxy name
+          schema:
+            type: string
+          example: OpenAI Provider
+        - name: version
+          in: query
+          required: false
+          description: Filter by LLM proxy version
+          schema:
+            type: string
+          example: v1.0
+        - name: context
+          in: query
+          required: false
+          description: Filter by LLM proxy context/path
+          schema:
+            type: string
+          example: /openai
+        - name: status
+          in: query
+          required: false
+          description: Filter by deployment status
+          schema:
+            type: string
+            enum: [ pending, deployed, failed ]
+          example: pending
+        - name: vhost
+          in: query
+          required: false
+          description: Filter by LLM proxy vhost
+          schema:
+            type: string
+          example: api.openai.com
+      responses:
+        '200':
+          description: List of LLM proxies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  count:
+                    type: integer
+                    example: 2
+                  providers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LLMProviderListItem'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /llm-proxies/{id}:
+    get:
+      summary: Get LLM proxy by unique identifier
+      description: Retrieve the complete configuration for a specific LLM proxy
+      operationId: getLLMProxyById
+      tags:
+        - LLM Provider Management
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identifier of the LLM proxy
+          schema:
+            type: string
+          example: wso2-docs-assistant
+      responses:
+        '200':
+          description: LLM provider details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LLMProxyDetailResponse'
+            application/yaml:
+              schema:
+                $ref: '#/components/schemas/LLMProxyDetailResponse'
+        '404':
+          description: LLM provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update an existing LLM proxy
+      description: Update the configuration of an existing LLM proxy
+      operationId: updateLLMProxy
+      tags:
+        - LLM Provider Management
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM proxy
+          schema:
+            type: string
+          example: wso2-openai-provider
+      requestBody:
+        required: true
+        description: Updated LLM proxy configuration
+        content:
+          application/yaml:
+            schema:
+              $ref: '#/components/schemas/LLMProxyConfiguration'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LLMProxyConfiguration'
+      responses:
+        '200':
+          description: LLM proxy updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LLMProviderUpdateResponse'
+        '400':
+          description: Invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: LLM provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete an LLM proxy
+      description: Remove an LLM proxy from the Gateway Controller
+      operationId: deleteLLMProxy
+      tags:
+        - LLM Provider Management
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM proxy
+          schema:
+            type: string
+          example: wso2-openai-provider
+      responses:
+        '200':
+          description: LLM proxy deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: LLM proxy deleted successfully
+                  id:
+                    type: string
+                    example: wso2-docs-assistant
         '404':
           description: LLM provider not found
           content:
@@ -2331,6 +2576,39 @@ components:
           format: date-time
           example: 2025-11-25T10:30:00Z
 
+    LLMProxyListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        name:
+          type: string
+          example: wso2-openai-provider
+        version:
+          type: string
+          example: v1.0
+        provider:
+          type: string
+          description: Unique id of a deployed llm provider
+          example: wso2-openai-provider
+        status:
+          type: string
+          enum:
+            - pending
+            - deployed
+            - failed
+          example: deployed
+        created_at:
+          type: string
+          format: date-time
+          example: 2025-11-25T10:30:00Z
+        updated_at:
+          type: string
+          format: date-time
+          example: 2025-11-25T10:30:00Z
+
     LLMProviderDetailResponse:
       type: object
       properties:
@@ -2345,6 +2623,43 @@ components:
               example: wso2-openai
             configuration:
               $ref: '#/components/schemas/LLMProviderConfiguration'
+            deployment_status:
+              type: string
+              enum:
+                - pending
+                - deployed
+                - failed
+              example: deployed
+            metadata:
+              type: object
+              properties:
+                created_at:
+                  type: string
+                  format: date-time
+                  example: 2025-11-25T10:30:00Z
+                updated_at:
+                  type: string
+                  format: date-time
+                  example: 2025-11-25T10:30:00Z
+                deployed_at:
+                  type: string
+                  format: date-time
+                  example: 2025-11-25T10:35:00Z
+
+    LLMProxyDetailResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        proxy:
+          type: object
+          properties:
+            id:
+              type: string
+              example: wso2-docs-assistant
+            configuration:
+              $ref: '#/components/schemas/LLMProxyConfiguration'
             deployment_status:
               type: string
               enum:
@@ -2541,6 +2856,79 @@ components:
           type: object
           description: JSON Schema describing the parameters accepted by this policy. This itself is a JSON Schema document.
           additionalProperties: true
+
+    LLMProxyConfiguration:
+      type: object
+      required:
+        - version
+        - kind
+        - spec
+      properties:
+        version:
+          type: string
+          description: Proxy specification version
+          example: ai.api-platform.wso2.com/v1
+          enum:
+            - ai.api-platform.wso2.com/v1
+        kind:
+          type: string
+          description: Proxy kind
+          example: LlmProxy
+          enum:
+            - LlmProxy
+        metadata:
+          $ref: "#/components/schemas/Metadata"
+        spec:
+          $ref: '#/components/schemas/LLMProxyConfigData'
+
+    LLMProxyConfigData:
+      type: object
+      required:
+        - displayName
+        - version
+        - provider
+      properties:
+        displayName:
+          type: string
+          description: Human-readable LLM proxy name (must be URL-friendly - only letters, numbers, spaces, hyphens, underscores, and dots allowed)
+          minLength: 1
+          maxLength: 253
+          pattern: '^[a-zA-Z0-9\-_\. ]+$'
+          example: wso2-con-assistant
+        version:
+          type: string
+          description: Semantic version of the LLM proxy
+          pattern: '^v\d+\.\d+$'
+          example: v1.0
+        context:
+          type: string
+          description: Base path for all API routes (must start with /, no trailing slash)
+          pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
+          default: /
+          minLength: 1
+          maxLength: 200
+          example: /openai
+        vhost:
+          type: string
+          description: >
+            Virtual host name used for routing. Supports standard domain names,
+            subdomains, or wildcard domains. Must follow RFC-compliant hostname
+            rules. Wildcards are only allowed in the left-most label (e.g., *.example.com).
+          pattern: '^(\*\.|[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+          minLength: 1
+          maxLength: 253
+          example: "api.openai"
+        provider:
+          type: string
+          description: Unique id of a deployed llm provider
+          example: wso2-openai-provider
+        accessControl:
+          $ref: '#/components/schemas/LLMAccessControl'
+        policies:
+          type: array
+          description: List of policies applied only to this operation (overrides or adds to API-level policies)
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
 
     CertificateUploadRequest:
       type: object

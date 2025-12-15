@@ -4,25 +4,144 @@ import (
 	"fmt"
 
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/constants"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/storage"
 	"gopkg.in/yaml.v3"
 )
 
 type LLMProviderTransformer struct {
-	store *storage.ConfigStore
+	store        *storage.ConfigStore
+	routerConfig *config.RouterConfig
 }
 
-func NewLLMProviderTransformer(store *storage.ConfigStore) *LLMProviderTransformer {
-	return &LLMProviderTransformer{store: store}
+func NewLLMProviderTransformer(store *storage.ConfigStore, routerConfig *config.RouterConfig) *LLMProviderTransformer {
+	return &LLMProviderTransformer{store: store, routerConfig: routerConfig}
 }
 
 func (t *LLMProviderTransformer) Transform(input any, output *api.APIConfiguration) (*api.APIConfiguration, error) {
-	provider, ok := input.(*api.LLMProviderConfiguration)
-	if !ok {
-		return nil, fmt.Errorf("invalid input type: expected *api.LLMProviderConfiguration")
+	switch v := input.(type) {
+	case *api.LLMProviderConfiguration:
+		return t.transformProvider(v, output)
+	case *api.LLMProxyConfiguration:
+		return t.transformProxy(v, output)
+	default:
+		return nil, fmt.Errorf("invalid input type: expected *api.LLMProviderConfiguration or *api.LLMProxyConfiguration")
+	}
+}
+
+func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration,
+	output *api.APIConfiguration) (*api.APIConfiguration, error) {
+	// @TODO: Step 1) Configure token based rate-limiting policy based on template configs
+	provider := t.store.GetByKindAndHandle(string(api.LlmProvider), proxy.Spec.Provider)
+	if provider == nil {
+		return nil, fmt.Errorf("failed to retrieve provider by id '%s'", proxy.Spec.Provider)
 	}
 
+	output.Kind = api.RestApi
+	output.ApiVersion = api.GatewayApiPlatformWso2Comv1alpha1
+
+	spec := api.APIConfigData{}
+	spec.DisplayName = proxy.Spec.DisplayName
+	spec.Version = proxy.Spec.Version
+	spec.Context = constants.BASE_PATH
+	if proxy.Spec.Context != nil {
+		spec.Context = *proxy.Spec.Context
+	}
+
+	// Step 2) Upstreams: map provider.Spec.Upstreams to api.Upstreams
+	// Map provider upstream and vhost to API main upstream and vhost
+	providerData, err := provider.Configuration.Spec.AsAPIConfigData()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve provider spec '%s'", proxy.Spec.DisplayName)
+	}
+	// If provider does not have vhost for main, fall back to gateway configs
+	effectiveVhost := providerData.Vhosts.Main
+	if effectiveVhost == "" {
+		effectiveVhost = t.routerConfig.VHosts.Main.Default
+	}
+	upstream := constants.HTTP + effectiveVhost + provider.GetContext()
+	spec.Upstream.Main = api.Upstream{
+		Url: &upstream,
+	}
+	if proxy.Spec.Vhost != nil {
+		spec.Vhosts = &struct {
+			Main    string  `json:"main" yaml:"main"`
+			Sandbox *string `json:"sandbox,omitempty" yaml:"sandbox,omitempty"`
+		}{
+			Main: *proxy.Spec.Vhost,
+		}
+	}
+
+	var ops []api.Operation
+	// Add catch-all operation '/' to allow all requests
+	// TODO: Add support for custom OpenAPI specification to override this behaviour
+	ops = append(ops, api.Operation{Method: constants.WILD_CARD, Path: constants.BASE_PATH + constants.WILD_CARD})
+
+	spec.Operations = ops
+
+	// Step 5) Attach policies from proxy.Spec.Policies to matching operations
+	if proxy.Spec.Policies != nil {
+		// Policies are now a simple array of LLMPolicy
+		for _, llmPol := range *proxy.Spec.Policies {
+			// For each path entry in the policy
+			for _, pathEntry := range llmPol.Paths {
+				// For each method in the path entry
+				for _, method := range pathEntry.Methods {
+					// Find matching operations (same path and same method)
+					found := false
+					for i := range spec.Operations {
+						op := &spec.Operations[i]
+						if op.Path == pathEntry.Path && string(op.Method) == string(method) {
+							// Convert LLMPolicy to API Policy using path-specific params
+							pol := api.Policy{
+								Name:    llmPol.Name,
+								Version: llmPol.Version,
+								Params:  &pathEntry.Params,
+							}
+							if op.Policies == nil {
+								op.Policies = &[]api.Policy{pol}
+							} else {
+								// Append to existing slice
+								existing := *op.Policies
+								existing = append(existing, pol)
+								op.Policies = &existing
+							}
+							found = true
+						}
+					}
+
+					// If no matching operation was found, create a new one
+					// TODO: This should not be applied in upcoming feature providing custom OpenAPI to override
+					if !found {
+						pol := api.Policy{
+							Name:    llmPol.Name,
+							Version: llmPol.Version,
+							Params:  &pathEntry.Params,
+						}
+						newOp := api.Operation{
+							Path:     pathEntry.Path,
+							Method:   api.OperationMethod(method),
+							Policies: &[]api.Policy{pol},
+						}
+						spec.Operations = append(spec.Operations, newOp)
+					}
+				}
+			}
+		}
+	}
+
+	// finalize output
+	var specUnion api.APIConfiguration_Spec
+	if err := specUnion.FromAPIConfigData(spec); err != nil {
+		return nil, err
+	}
+	output.Spec = specUnion
+	return output, nil
+}
+
+func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConfiguration,
+	output *api.APIConfiguration) (*api.APIConfiguration, error) {
 	// @TODO: Step 1) Configure token based rate-limiting policy based on template configs
 	_, err := t.store.GetTemplateByHandle(provider.Spec.Template)
 	if err != nil {
@@ -129,10 +248,11 @@ func (t *LLMProviderTransformer) Transform(input any, output *api.APIConfigurati
 			for _, pathEntry := range llmPol.Paths {
 				// For each method in the path entry
 				for _, method := range pathEntry.Methods {
-					// Find matching operations (same path and either same method or wildcard '*')
+					// Find matching operations (same path and same method)
+					found := false
 					for i := range spec.Operations {
 						op := &spec.Operations[i]
-						if op.Path == pathEntry.Path && (string(op.Method) == string(method) || string(op.Method) == "*") {
+						if op.Path == pathEntry.Path && string(op.Method) == string(method) {
 							// Convert LLMPolicy to API Policy using path-specific params
 							pol := api.Policy{
 								Name:    llmPol.Name,
@@ -147,7 +267,23 @@ func (t *LLMProviderTransformer) Transform(input any, output *api.APIConfigurati
 								existing = append(existing, pol)
 								op.Policies = &existing
 							}
+							found = true
 						}
+					}
+
+					// If no matching operation was found, create a new one only for access control allow_all mode
+					if provider.Spec.AccessControl.Mode == api.AllowAll && !found {
+						pol := api.Policy{
+							Name:    llmPol.Name,
+							Version: llmPol.Version,
+							Params:  &pathEntry.Params,
+						}
+						newOp := api.Operation{
+							Path:     pathEntry.Path,
+							Method:   api.OperationMethod(method),
+							Policies: &[]api.Policy{pol},
+						}
+						spec.Operations = append(spec.Operations, newOp)
 					}
 				}
 			}

@@ -86,18 +86,14 @@ const (
 	SPEC_VERSION_2025_NOVEMBER = "2025-11-25"
 
 	// Router constants
+	HTTP      = "http://"
 	BASE_PATH = "/"
 	WILD_CARD = "*"
 
 	// LLM Transformer constants
-	UPSTREAM_AUTH_APIKEY_POLICY_NAME                = "ModifyHeaders"
-	UPSTREAM_AUTH_APIKEY_POLICY_VERSION             = "v1.0.0"
-	UPSTREAM_AUTH_APIKEY_POLICY_REQUEST_HEADERS_KEY = "requestHeaders"
-	UPSTREAM_AUTH_APIKEY_POLICY_HEADER_ACTION_KEY   = "action"
-	UPSTREAM_AUTH_APIKEY_POLICY_HEADER_ACTION       = "SET"
-	UPSTREAM_AUTH_APIKEY_POLICY_HEADER_NAME         = "name"
-	UPSTREAM_AUTH_APIKEY_POLICY_HEADER_VALUE        = "value"
-	UPSTREAM_AUTH_APIKEY_POLICY_PARAMS              = "requestHeaders:\n" +
+	UPSTREAM_AUTH_APIKEY_POLICY_NAME    = "ModifyHeaders"
+	UPSTREAM_AUTH_APIKEY_POLICY_VERSION = "v1.0.0"
+	UPSTREAM_AUTH_APIKEY_POLICY_PARAMS  = "requestHeaders:\n" +
 		"  - action: SET\n" +
 		"    name: %s\n" +
 		"    value: %s\n"
