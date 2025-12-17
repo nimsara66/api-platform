@@ -17,9 +17,11 @@
 # --------------------------------------------------------------------
 
 version: ai.api-platform.wso2.com/v1
-kind: llm/provider-template
-spec:
+kind: LlmProviderTemplate
+metadata:
   name: azure-openai
+spec:
+  displayName: Azure OpenAI
   promptTokens:
     location: payload
     identifier: $.usage.input_tokens

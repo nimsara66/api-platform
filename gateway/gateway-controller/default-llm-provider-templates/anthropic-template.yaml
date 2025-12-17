@@ -17,9 +17,11 @@
 # --------------------------------------------------------------------
 
 version: ai.api-platform.wso2.com/v1
-kind: llm/provider-template
-spec:
+kind: LlmProviderTemplate
+metadata:
   name: anthropic
+spec:
+  displayName: Anthropic
   promptTokens:
     location: payload
     identifier: $.usage.input_tokens

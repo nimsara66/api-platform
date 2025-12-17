@@ -17,9 +17,11 @@
 # --------------------------------------------------------------------
 
 version: ai.api-platform.wso2.com/v1
-kind: llm/provider-template
-spec:
+kind: LlmProviderTemplate
+metadata:
   name: gemini
+spec:
+  displayName: Gemini
   promptTokens:
     location: payload
     identifier: $.usage.inputTokens
