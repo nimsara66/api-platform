@@ -86,7 +86,6 @@ const (
 	SPEC_VERSION_2025_NOVEMBER = "2025-11-25"
 
 	// Router constants
-	HTTP      = "http://"
 	BASE_PATH = "/"
 	WILD_CARD = "*"
 
@@ -114,3 +113,12 @@ const (
 		"    name: %s\n" +
 		"    value: %s\n"
 )
+
+var WILDCARD_HTTP_METHODS = []string{
+	"GET",
+	"POST",
+	"PUT",
+	"PATCH",
+	"DELETE",
+	"OPTIONS",
+}
