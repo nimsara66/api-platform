@@ -17,7 +17,7 @@
 # --------------------------------------------------------------------
 
 version: ai.api-platform.wso2.com/v1
-kind: llm/proxy
+kind: LlmProxy
 spec:
   name: wso2con-assistant
   version: v1.0

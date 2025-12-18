@@ -38,12 +38,14 @@ func (t *LLMProviderTransformer) Transform(input any, output *api.APIConfigurati
 
 func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration,
 	output *api.APIConfiguration) (*api.APIConfiguration, error) {
-	// @TODO: Step 1) Configure token based rate-limiting policy based on template configs
+	
+	// Step 1: Retrieve and validate provider reference
 	provider := t.store.GetByKindAndHandle(string(api.LlmProvider), proxy.Spec.Provider)
 	if provider == nil {
 		return nil, fmt.Errorf("failed to retrieve provider by id '%s'", proxy.Spec.Provider)
 	}
 
+	// Step 2: Configure API metadata and basic spec
 	output.Kind = api.RestApi
 	output.ApiVersion = api.GatewayApiPlatformWso2Comv1alpha1
 	output.Metadata = proxy.Metadata
@@ -56,22 +58,25 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 		spec.Context = *proxy.Spec.Context
 	}
 
-	// Step 2) Upstreams: map provider.Spec.Upstreams to api.Upstreams
-	// Map provider upstream and vhost to API main upstream and vhost
+	// Step 3: Map provider upstream and vhost to API upstream
 	providerData, err := provider.Configuration.Spec.AsAPIConfigData()
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve provider spec '%s'", proxy.Spec.DisplayName)
+		return nil, fmt.Errorf("failed to retrieve provider spec for '%s': %w", proxy.Spec.DisplayName, err)
 	}
-	// If provider does not have vhost for main, fall back to gateway configs
-	effectiveVhost := providerData.Vhosts.Main
-	if effectiveVhost == "" {
-		effectiveVhost = t.routerConfig.GatewayHost
+	
+	// Construct upstream URL pointing to deployed provider: http://vhost:port/provider-context
+	effectiveVhost := t.routerConfig.GatewayHost // default fallback
+	if providerData.Vhosts != nil && providerData.Vhosts.Main != "" {
+		effectiveVhost = providerData.Vhosts.Main
 	}
+	
 	upstream := fmt.Sprintf("%s://%s:%d%s",
 		constants.SchemeHTTP, effectiveVhost, t.routerConfig.ListenerPort, provider.GetContext())
 	spec.Upstream.Main = api.Upstream{
 		Url: &upstream,
 	}
+	
+	// Set proxy-specific vhost if provided
 	if proxy.Spec.Vhost != nil {
 		spec.Vhosts = &struct {
 			Main    string  `json:"main" yaml:"main"`
@@ -81,65 +86,102 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 		}
 	}
 
+	// Step 4: Build operations (AllowAll mode without exceptions)
+	// This follows the same pattern as transformProvider AllowAll mode but simplified
 	var ops []api.Operation
-	// Add catch-all operation '/' to allow all requests
-	// TODO: Add support for custom OpenAPI specification to override this behaviour
-	ops = append(ops, api.Operation{Method: constants.WILD_CARD, Path: constants.BASE_PATH + constants.WILD_CARD})
+	var apiLevelPolicies []api.Policy
 
-	spec.Operations = ops
+	// Phase 1: Create Catch-All Base Operations
+	// In proxy mode, we always allow all requests (no access control)
+	operationRegistry := make(map[pathMethodKey]*api.Operation)
+	for _, method := range constants.WILDCARD_HTTP_METHODS {
+		op := &api.Operation{
+			Path:   constants.BASE_PATH + constants.WILD_CARD,
+			Method: api.OperationMethod(method),
+		}
+		operationRegistry[pathMethodKey{path: op.Path, method: method}] = op
+	}
 
-	// Step 5) Attach policies from proxy.Spec.Policies to matching operations
+	// Phase 2: Process User-Defined Policies
 	if proxy.Spec.Policies != nil {
-		// Policies are now a simple array of LLMPolicy
 		for _, llmPol := range *proxy.Spec.Policies {
-			// For each path entry in the policy
 			for _, pathEntry := range llmPol.Paths {
-				// For each method in the path entry
-				for _, method := range pathEntry.Methods {
-					// Find matching operations (same path and same method)
-					found := false
-					for i := range spec.Operations {
-						op := &spec.Operations[i]
-						if op.Path == pathEntry.Path && string(op.Method) == string(method) {
-							// Convert LLMPolicy to API Policy using path-specific params
-							pol := api.Policy{
-								Name:    llmPol.Name,
-								Version: llmPol.Version,
-								Params:  &pathEntry.Params,
-							}
+				// Check if this is a root wildcard policy (API-level)
+				if pathEntry.Path == constants.BASE_PATH+constants.WILD_CARD {
+					// Add to API-level policies
+					policy := api.Policy{
+						Name:    llmPol.Name,
+						Version: llmPol.Version,
+						Params:  &pathEntry.Params,
+					}
+					apiLevelPolicies = append(apiLevelPolicies, policy)
+					continue // Skip operation-level attachment
+				}
+
+				// Expand wildcard methods in policy
+				var policyMethods []string
+				if len(pathEntry.Methods) == 1 && string(pathEntry.Methods[0]) == "*" {
+					policyMethods = constants.WILDCARD_HTTP_METHODS
+				} else {
+					policyMethods = make([]string, len(pathEntry.Methods))
+					for i, m := range pathEntry.Methods {
+						policyMethods[i] = string(m)
+					}
+				}
+
+				for _, policyMethod := range policyMethods {
+					// Create operation if it doesn't exist (dynamic operation creation)
+					key := pathMethodKey{path: pathEntry.Path, method: policyMethod}
+					if _, exists := operationRegistry[key]; !exists {
+						op := &api.Operation{
+							Path:   pathEntry.Path,
+							Method: api.OperationMethod(policyMethod),
+						}
+						operationRegistry[key] = op
+					}
+
+					// Attach policy to matching operations using pathsMatch helper
+					pol := api.Policy{
+						Name:    llmPol.Name,
+						Version: llmPol.Version,
+						Params:  &pathEntry.Params,
+					}
+
+					for opKey, op := range operationRegistry {
+						// Only consider operations with matching method
+						if opKey.method != policyMethod {
+							continue
+						}
+
+						// Use pathsMatch to determine if policy applies to this operation
+						if pathsMatch(op.Path, pathEntry.Path) {
 							if op.Policies == nil {
 								op.Policies = &[]api.Policy{pol}
 							} else {
-								// Append to existing slice
 								existing := *op.Policies
 								existing = append(existing, pol)
 								op.Policies = &existing
 							}
-							found = true
 						}
-					}
-
-					// If no matching operation was found, create a new one
-					// TODO: This should not be applied in upcoming feature providing custom OpenAPI to override
-					if !found {
-						pol := api.Policy{
-							Name:    llmPol.Name,
-							Version: llmPol.Version,
-							Params:  &pathEntry.Params,
-						}
-						newOp := api.Operation{
-							Path:     pathEntry.Path,
-							Method:   api.OperationMethod(method),
-							Policies: &[]api.Policy{pol},
-						}
-						spec.Operations = append(spec.Operations, newOp)
 					}
 				}
 			}
 		}
 	}
 
-	// finalize output
+	// Phase 3: Sort and Finalize Operations
+	for _, op := range operationRegistry {
+		ops = append(ops, *op)
+	}
+	ops = sortOperationsBySpecificity(ops)
+	spec.Operations = ops
+
+	// Attach API-level policies if any
+	if len(apiLevelPolicies) > 0 {
+		spec.Policies = &apiLevelPolicies
+	}
+
+	// Finalize output
 	var specUnion api.APIConfiguration_Spec
 	if err := specUnion.FromAPIConfigData(spec); err != nil {
 		return nil, err
