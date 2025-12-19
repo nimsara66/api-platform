@@ -464,12 +464,12 @@ func (v *LLMValidator) validateProxyData(spec *api.LLMProxyConfigData) []Validat
 	if spec.Version != "" && !v.versionRegex.MatchString(spec.Version) {
 		errors = append(errors, ValidationError{
 			Field:   "spec.version",
-			Message: "Provider version format is invalid (expected vX.Y.Z)",
+			Message: "Proxy version format is invalid (expected vX.Y.Z)",
 		})
 	}
 
 	// Validate provider id
-	if &spec.Provider == nil || spec.Provider == "" {
+	if spec.Provider == "" {
 		errors = append(errors, ValidationError{
 			Field:   "spec.provider",
 			Message: "Provider is required",

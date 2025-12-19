@@ -1267,11 +1267,11 @@ paths:
               $ref: '#/components/schemas/LLMProxyConfiguration'
       responses:
         '201':
-          description: LLM provider created and deployed successfully
+          description: LLM proxy created and deployed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderCreateResponse'
+                $ref: '#/components/schemas/LLMProxyCreateResponse'
         '400':
           description: Invalid configuration (validation failed)
           content:
@@ -1348,10 +1348,10 @@ paths:
                   count:
                     type: integer
                     example: 2
-                  providers:
+                  proxies:
                     type: array
                     items:
-                      $ref: '#/components/schemas/LLMProviderListItem'
+                      $ref: '#/components/schemas/LLMProxyListItem'
         '500':
           description: Internal server error
           content:
@@ -1376,7 +1376,7 @@ paths:
           example: wso2-docs-assistant
       responses:
         '200':
-          description: LLM provider details
+          description: LLM proxy details
           content:
             application/json:
               schema:
@@ -1385,7 +1385,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/LLMProxyDetailResponse'
         '404':
-          description: LLM provider not found
+          description: LLM proxy not found
           content:
             application/json:
               schema:
@@ -1427,7 +1427,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderUpdateResponse'
+                $ref: '#/components/schemas/LLMProxyUpdateResponse'
         '400':
           description: Invalid configuration
           content:
@@ -2528,6 +2528,23 @@ components:
           format: date-time
           example: 2025-11-25T10:30:00Z
 
+    LLMProxyCreateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: LLM proxy created successfully
+        id:
+          type: string
+          example: wso2-con-assistant
+        created_at:
+          type: string
+          format: date-time
+          example: 2025-11-25T10:30:00Z
+
     LLMProviderUpdateResponse:
       type: object
       properties:
@@ -2540,6 +2557,23 @@ components:
         id:
           type: string
           example: openai
+        updated_at:
+          type: string
+          format: date-time
+          example: 2025-11-25T11:45:00Z
+
+    LLMProxyUpdateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: LLM proxy updated successfully
+        id:
+          type: string
+          example: wso2-con-assistant
         updated_at:
           type: string
           format: date-time
@@ -2581,8 +2615,7 @@ components:
       properties:
         id:
           type: string
-          format: uuid
-          example: 550e8400-e29b-41d4-a716-446655440000
+          example: wso2-con-assistant
         name:
           type: string
           example: wso2-openai-provider

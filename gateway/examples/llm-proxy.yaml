@@ -78,7 +78,7 @@ spec:
       version: v1.0.0
       paths:
         - path: /
-          methods: [ * ]
+          methods: [ "*" ]
           params:
             token-url:
               type: string

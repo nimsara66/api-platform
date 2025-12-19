@@ -30,7 +30,7 @@ spec:
     identifier: $.usage.output_tokens
   totalTokens:
     location: payload
-    identifier: $.usage.totalTokens
+    identifier: $.usage.total_tokens
   remainingTokens:
     location: header
     identifier: anthropic-ratelimit-tokens-remaining

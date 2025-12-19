@@ -1276,24 +1276,26 @@ func (s *APIServer) ListLLMProxies(c *gin.Context, params api.ListLLMProxiesPara
 	log := middleware.GetLogger(c, s.logger)
 	configs := s.llmDeploymentService.ListLLMProxies(params)
 
-	items := make([]api.LLMProviderListItem, len(configs))
+	items := make([]api.LLMProxyListItem, len(configs))
 	for i, cfg := range configs {
-		status := api.LLMProviderListItemStatus(cfg.Status)
+		status := api.LLMProxyListItemStatus(cfg.Status)
 
-		// Convert SourceConfiguration to LLMProviderConfiguration
-		var prov api.LLMProviderConfiguration
+		// Convert SourceConfiguration to LLMProxyConfiguration
+		var proxy api.LLMProxyConfiguration
 		j, _ := json.Marshal(cfg.SourceConfiguration)
-		if err := json.Unmarshal(j, &prov); err != nil {
-			log.Error("Failed to unmarshal stored LLM proxy configuration", zap.String("id", cfg.ID), zap.Error(err))
-			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Status: "error", Message: "Failed to get stored LLM proxy configuration"})
+		if err := json.Unmarshal(j, &proxy); err != nil {
+			log.Error("Failed to unmarshal stored LLM proxy configuration", zap.String("id", cfg.ID),
+				zap.Error(err))
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{
+				Status: "error", Message: "Failed to get stored LLM proxy configuration"})
 			return
 		}
 
-		items[i] = api.LLMProviderListItem{
-			Id:        stringPtr(prov.Metadata.Name),
-			Name:      stringPtr(prov.Spec.DisplayName),
-			Version:   stringPtr(prov.Spec.Version),
-			Template:  stringPtr(prov.Spec.Template),
+		items[i] = api.LLMProxyListItem{
+			Id:        stringPtr(proxy.Metadata.Name),
+			Name:      stringPtr(proxy.Spec.DisplayName),
+			Version:   stringPtr(proxy.Spec.Version),
+			Provider:  stringPtr(proxy.Spec.Provider),
 			Status:    &status,
 			CreatedAt: timePtr(cfg.CreatedAt),
 			UpdatedAt: timePtr(cfg.UpdatedAt),
@@ -1341,10 +1343,10 @@ func (s *APIServer) CreateLLMProxy(c *gin.Context) {
 	}
 
 	log.Info("LLM proxy created successfully",
-		zap.String("id", stored.ID),
+		zap.String("uuid", stored.ID),
 		zap.String("handle", stored.GetHandle()))
 
-	c.JSON(http.StatusCreated, api.LLMProviderCreateResponse{
+	c.JSON(http.StatusCreated, api.LLMProxyCreateResponse{
 		Status:  stringPtr("success"),
 		Message: stringPtr("LLM proxy created successfully"),
 		Id:      stringPtr(stored.GetHandle()), CreatedAt: timePtr(stored.CreatedAt)})
@@ -1432,7 +1434,7 @@ func (s *APIServer) UpdateLLMProxy(c *gin.Context, id string) {
 		return
 	}
 
-	c.JSON(http.StatusOK, api.LLMProviderUpdateResponse{
+	c.JSON(http.StatusOK, api.LLMProxyUpdateResponse{
 		Id:        stringPtr(updated.GetHandle()),
 		Message:   stringPtr("LLM proxy updated successfully"),
 		Status:    stringPtr("success"),
@@ -1451,7 +1453,7 @@ func (s *APIServer) UpdateLLMProxy(c *gin.Context, id string) {
 					zap.Int("route_count", len(storedPolicy.Configuration.Routes)))
 			}
 		} else {
-			// LLM provider no longer has policies, remove the existing policy configuration
+			// LLM proxy no longer has policies, remove the existing policy configuration
 			policyID := updated.ID + "-policies"
 			if err := s.policyManager.RemovePolicy(policyID); err != nil {
 				// Log at debug level since policy may not exist if LLM provider never had policies
