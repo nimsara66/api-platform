@@ -217,13 +217,13 @@ func (s *LLMDeploymentService) DeployLLMProxyConfiguration(params LLMDeploymentP
 	if isUpdate {
 		params.Logger.Info("LLM proxy configuration updated",
 			zap.String("api_id", apiID),
-			zap.String("name", storedCfg.GetName()),
+			zap.String("name", storedCfg.GetDisplayName()),
 			zap.String("version", storedCfg.GetVersion()),
 			zap.String("correlation_id", params.CorrelationID))
 	} else {
 		params.Logger.Info("LLM proxy configuration created",
 			zap.String("api_id", apiID),
-			zap.String("name", storedCfg.GetName()),
+			zap.String("name", storedCfg.GetDisplayName()),
 			zap.String("version", storedCfg.GetVersion()),
 			zap.String("correlation_id", params.CorrelationID))
 	}
