@@ -59,24 +59,15 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 		spec.Context = *proxy.Spec.Context
 	}
 
-	// Step 3: Map provider upstream and vhost to API upstream
-	providerData, err := provider.Configuration.Spec.AsAPIConfigData()
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve provider spec for '%s': %w", proxy.Spec.DisplayName, err)
-	}
-
-	// Construct upstream URL pointing to deployed provider: http://vhost:port/provider-context
-	effectiveVhost := t.routerConfig.GatewayHost // default fallback
-	if providerData.Vhosts != nil && providerData.Vhosts.Main != "" {
-		effectiveVhost = providerData.Vhosts.Main
-	}
-
+	// Step 3: Map the referenced local provider as an upstream in the transformed API config
 	effectiveScheme := constants.SchemeHTTP
+	effectivePort := t.routerConfig.ListenerPort
 	if t.routerConfig.HTTPSEnabled {
 		effectiveScheme = constants.SchemeHTTPS
+		effectivePort = t.routerConfig.HTTPSPort
 	}
 	upstream := fmt.Sprintf("%s://%s:%d%s",
-		effectiveScheme, effectiveVhost, t.routerConfig.ListenerPort, provider.GetContext())
+		effectiveScheme, constants.LocalhostIP, effectivePort, provider.GetContext())
 	spec.Upstream.Main = api.Upstream{
 		Url: &upstream,
 	}

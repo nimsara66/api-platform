@@ -45,6 +45,9 @@ const (
 	SchemeHTTP  = "http"
 	SchemeHTTPS = "https"
 
+	// Localhost
+	LocalhostIP = "127.0.0.1"
+
 	// Transport Socket Configuration
 	EnvoyTLSTransportSocket = "envoy.transport_sockets.tls"
 	DefaultCertificateKey   = "default"
