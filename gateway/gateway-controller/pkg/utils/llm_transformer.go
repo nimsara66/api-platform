@@ -251,7 +251,6 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 	}
 
 	var ops []api.Operation
-	var apiLevelPolicies []api.Policy
 
 	switch mode {
 	case api.AllowAll:
@@ -319,18 +318,6 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 		if provider.Spec.Policies != nil {
 			for _, llmPol := range *provider.Spec.Policies {
 				for _, pathEntry := range llmPol.Paths {
-					// Check if this is a root wildcard policy (API-level)
-					if pathEntry.Path == constants.BASE_PATH+constants.WILD_CARD {
-						// Add to API-level policies
-						policy := api.Policy{
-							Name:    llmPol.Name,
-							Version: llmPol.Version,
-							Params:  &pathEntry.Params,
-						}
-						apiLevelPolicies = append(apiLevelPolicies, policy)
-						continue // Skip operation-level attachment
-					}
-
 					// Expand wildcard methods in policy
 					var policyMethods []string
 					if len(pathEntry.Methods) == 1 && string(pathEntry.Methods[0]) == "*" {
@@ -431,18 +418,6 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 		if provider.Spec.Policies != nil {
 			for _, llmPol := range *provider.Spec.Policies {
 				for _, pathEntry := range llmPol.Paths {
-					// // Check if this is a root wildcard policy (API-level)
-					// if pathEntry.Path == constants.BASE_PATH+constants.WILD_CARD {
-					// 	// Add to API-level policies
-					// 	policy := api.Policy{
-					// 		Name:    llmPol.Name,
-					// 		Version: llmPol.Version,
-					// 		Params:  &pathEntry.Params,
-					// 	}
-					// 	apiLevelPolicies = append(apiLevelPolicies, policy)
-					// 	continue // Skip operation-level attachment
-					// }
-
 					// Expand wildcard methods in policy
 					var policyMethods []string
 					if len(pathEntry.Methods) == 1 && string(pathEntry.Methods[0]) == "*" {
@@ -507,18 +482,6 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 
 	ops = sortOperationsBySpecificity(ops)
 	spec.Operations = ops
-
-	// Attach API-level policies if any
-	if len(apiLevelPolicies) > 0 {
-		if spec.Policies == nil {
-			spec.Policies = &apiLevelPolicies
-		} else {
-			// Append to existing API-level policies (e.g., upstream auth)
-			existing := *spec.Policies
-			existing = append(existing, apiLevelPolicies...)
-			spec.Policies = &existing
-		}
-	}
 
 	// finalize output
 	var specUnion api.APIConfiguration_Spec
