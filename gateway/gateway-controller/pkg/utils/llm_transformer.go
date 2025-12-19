@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
@@ -70,8 +71,12 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 		effectiveVhost = providerData.Vhosts.Main
 	}
 
+	effectiveScheme := constants.SchemeHTTP
+	if t.routerConfig.HTTPSEnabled {
+		effectiveScheme = constants.SchemeHTTPS
+	}
 	upstream := fmt.Sprintf("%s://%s:%d%s",
-		constants.SchemeHTTP, effectiveVhost, t.routerConfig.ListenerPort, provider.GetContext())
+		effectiveScheme, effectiveVhost, t.routerConfig.ListenerPort, provider.GetContext())
 	spec.Upstream.Main = api.Upstream{
 		Url: &upstream,
 	}
@@ -518,9 +523,9 @@ func isDeniedByException(policyPath, policyMethod string, deniedPathMethods map[
 
 		// Check if deniedPath is wildcard that covers policyPath
 		// Example: deniedPath="chat/*" covers policyPath="chat/completions"
-		if contains(deniedKey.path, "*") {
-			prefix := deniedKey.path[:lastIndex(deniedKey.path, "*")]
-			if hasPrefix(policyPath, prefix) {
+		if strings.Contains(deniedKey.path, "*") {
+			prefix := deniedKey.path[:strings.LastIndex(deniedKey.path, "*")]
+			if strings.HasPrefix(policyPath, prefix) {
 				return true
 			}
 		}
@@ -558,9 +563,9 @@ func isAllowedByAccessControl(policyPath, policyMethod string, normalizedExcepti
 
 		// Case 2: Exception path is wildcard that covers policy path
 		// Example: exceptionPath="chat/*" covers policyPath="chat/completions"
-		if contains(key.path, "*") {
-			prefix := key.path[:lastIndex(key.path, "*")]
-			if hasPrefix(policyPath, prefix) {
+		if strings.Contains(key.path, "*") {
+			prefix := key.path[:strings.LastIndex(key.path, "*")]
+			if strings.HasPrefix(policyPath, prefix) {
 				return true
 			}
 		}
@@ -582,9 +587,9 @@ func pathsMatch(opPath, policyPath string) bool {
 
 	// Case 2: Policy has wildcard and operation path starts with policy prefix
 	// Example: policyPath="chat/*", opPath="chat/completions" or "chat/completions/stream"
-	if contains(policyPath, "*") {
-		prefix := policyPath[:lastIndex(policyPath, "*")]
-		if hasPrefix(opPath, prefix) {
+	if strings.Contains(policyPath, "*") {
+		prefix := policyPath[:strings.LastIndex(policyPath, "*")]
+		if strings.HasPrefix(opPath, prefix) {
 			return true
 		}
 	}
@@ -619,8 +624,8 @@ func sortOperationsBySpecificity(ops []api.Operation) []api.Operation {
 
 // shouldSwap determines if two operations should be swapped in sorting
 func shouldSwap(op1, op2 api.Operation) bool {
-	path1HasWildcard := contains(op1.Path, "*")
-	path2HasWildcard := contains(op2.Path, "*")
+	path1HasWildcard := strings.Contains(op1.Path, "*")
+	path2HasWildcard := strings.Contains(op2.Path, "*")
 
 	// Non-wildcard paths come before wildcard paths
 	if !path1HasWildcard && path2HasWildcard {
@@ -642,31 +647,4 @@ func shouldSwap(op1, op2 api.Operation) bool {
 
 	// Method alphabetically
 	return string(op1.Method) > string(op2.Method)
-}
-
-// Helper string functions
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-func lastIndex(s, substr string) int {
-	lastIdx := -1
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			lastIdx = i
-		}
-	}
-	return lastIdx
-}
-
-func hasPrefix(s, prefix string) bool {
-	if len(s) < len(prefix) {
-		return false
-	}
-	return s[:len(prefix)] == prefix
 }

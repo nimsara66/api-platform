@@ -130,6 +130,10 @@ func (s *LLMDeploymentService) DeployLLMProviderConfiguration(params LLMDeployme
 
 	// Save or update
 	isUpdate, err := s.deploymentService.saveOrUpdateConfig(storedCfg, params.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save or update LLM provider configuration: %w", err)
+	}
+
 	// Log success
 	if isUpdate {
 		params.Logger.Info("LLM provider configuration updated",
@@ -213,6 +217,9 @@ func (s *LLMDeploymentService) DeployLLMProxyConfiguration(params LLMDeploymentP
 
 	// Save or update
 	isUpdate, err := s.deploymentService.saveOrUpdateConfig(storedCfg, params.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save or update LLM proxy configuration: %w", err)
+	}
 	// Log success
 	if isUpdate {
 		params.Logger.Info("LLM proxy configuration updated",

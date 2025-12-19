@@ -24,13 +24,13 @@ spec:
   displayName: Gemini
   promptTokens:
     location: payload
-    identifier: $.usage.inputTokens
+    identifier: $.usageMetadata.promptTokenCount
   completionTokens:
     location: payload
-    identifier: $.usage.outputTokens
+    identifier: $.usageMetadata.candidatesTokenCount
   totalTokens:
     location: payload
-    identifier: $.usage.totalTokens
+    identifier: $.usageMetadata.totalTokenCount
   remainingTokens:
     location: header
     identifier: x-ratelimit-remaining-tokens
