@@ -38,7 +38,7 @@ func (t *LLMProviderTransformer) Transform(input any, output *api.APIConfigurati
 
 func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration,
 	output *api.APIConfiguration) (*api.APIConfiguration, error) {
-	
+
 	// Step 1: Retrieve and validate provider reference
 	provider := t.store.GetByKindAndHandle(string(api.LlmProvider), proxy.Spec.Provider)
 	if provider == nil {
@@ -63,19 +63,19 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve provider spec for '%s': %w", proxy.Spec.DisplayName, err)
 	}
-	
+
 	// Construct upstream URL pointing to deployed provider: http://vhost:port/provider-context
 	effectiveVhost := t.routerConfig.GatewayHost // default fallback
 	if providerData.Vhosts != nil && providerData.Vhosts.Main != "" {
 		effectiveVhost = providerData.Vhosts.Main
 	}
-	
+
 	upstream := fmt.Sprintf("%s://%s:%d%s",
 		constants.SchemeHTTP, effectiveVhost, t.routerConfig.ListenerPort, provider.GetContext())
 	spec.Upstream.Main = api.Upstream{
 		Url: &upstream,
 	}
-	
+
 	// Set proxy-specific vhost if provided
 	if proxy.Spec.Vhost != nil {
 		spec.Vhosts = &struct {
@@ -431,17 +431,17 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 		if provider.Spec.Policies != nil {
 			for _, llmPol := range *provider.Spec.Policies {
 				for _, pathEntry := range llmPol.Paths {
-					// Check if this is a root wildcard policy (API-level)
-					if pathEntry.Path == constants.BASE_PATH+constants.WILD_CARD {
-						// Add to API-level policies
-						policy := api.Policy{
-							Name:    llmPol.Name,
-							Version: llmPol.Version,
-							Params:  &pathEntry.Params,
-						}
-						apiLevelPolicies = append(apiLevelPolicies, policy)
-						continue // Skip operation-level attachment
-					}
+					// // Check if this is a root wildcard policy (API-level)
+					// if pathEntry.Path == constants.BASE_PATH+constants.WILD_CARD {
+					// 	// Add to API-level policies
+					// 	policy := api.Policy{
+					// 		Name:    llmPol.Name,
+					// 		Version: llmPol.Version,
+					// 		Params:  &pathEntry.Params,
+					// 	}
+					// 	apiLevelPolicies = append(apiLevelPolicies, policy)
+					// 	continue // Skip operation-level attachment
+					// }
 
 					// Expand wildcard methods in policy
 					var policyMethods []string
@@ -608,6 +608,10 @@ func isAllowedByAccessControl(policyPath, policyMethod string, normalizedExcepti
 
 // pathsMatch checks if an operation path matches a policy path for policy attachment
 func pathsMatch(opPath, policyPath string) bool {
+	// Case 0: policyPath is root (covers any operation path)
+	if policyPath == constants.BASE_PATH+constants.WILD_CARD {
+		return true
+	}
 	// Case 1: Exact match (including same wildcard)
 	if opPath == policyPath {
 		return true
