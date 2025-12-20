@@ -16,10 +16,12 @@
 # under the License.
 # --------------------------------------------------------------------
 
-version: ai.api-platform.wso2.com/v1
+apiVersion: gateway.api-platform.wso2.com/v1alpha1
 kind: LlmProxy
-spec:
+metadata:
   name: wso2con-assistant
+spec:
+  displayName: WSO2 Con Assistant
   version: v1.0
   context: /assistant
   provider: wso2-openai-provider

@@ -33,8 +33,6 @@ type LLMValidator struct {
 	versionRegex *regexp.Regexp
 	// metadataNameRegex matches URL-safe characters for Metadata.Name
 	metadataNameRegex *regexp.Regexp
-	// specRegex matches valid LLM specification versions
-	specRegex *regexp.Regexp
 }
 
 // NewLLMValidator creates a new LLM configuration validator
@@ -42,7 +40,6 @@ func NewLLMValidator() *LLMValidator {
 	return &LLMValidator{
 		versionRegex:      regexp.MustCompile(`^v?\d+(\.\d+)?(\.\d+)?$`),
 		metadataNameRegex: regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`),
-		specRegex:         regexp.MustCompile(`^ai\.api-platform\.wso2\.com/v?(\d+)(\.\d+)?(\.\d+)?$`),
 	}
 }
 
@@ -89,10 +86,10 @@ func (v *LLMValidator) validateLLMProviderTemplate(template *api.LLMProviderTemp
 	}
 
 	// Validate version
-	if !v.specRegex.MatchString(string(template.Version)) {
+	if template.ApiVersion != api.LLMProviderTemplateApiVersionGatewayApiPlatformWso2Comv1alpha1 {
 		errors = append(errors, ValidationError{
 			Field:   "version",
-			Message: "Version must be in the format 'ai.api-platform.wso2.com/vX.Y.Z'",
+			Message: "Version must be 'gateway.api-platform.wso2.com/v1alpha1'",
 		})
 	}
 
@@ -219,10 +216,10 @@ func (v *LLMValidator) validateLLMProvider(provider *api.LLMProviderConfiguratio
 	}
 
 	// Validate version
-	if !v.specRegex.MatchString(string(provider.Version)) {
+	if provider.ApiVersion != api.LLMProviderConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1 {
 		errors = append(errors, ValidationError{
 			Field:   "version",
-			Message: "Version must be in the format 'ai.api-platform.wso2.com/vX.Y.Z'",
+			Message: "Version must be in the format 'gateway.api-platform.wso2.com/v1alpha1'",
 		})
 	}
 
@@ -396,10 +393,10 @@ func (v *LLMValidator) validateLLMProxy(proxy *api.LLMProxyConfiguration) []Vali
 	}
 
 	// Validate version
-	if !v.specRegex.MatchString(string(proxy.Version)) {
+	if proxy.ApiVersion != api.LLMProxyConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1 {
 		errors = append(errors, ValidationError{
 			Field:   "version",
-			Message: "Version must be in the format 'ai.api-platform.wso2.com/vX.Y.Z'",
+			Message: "Version must be in the format 'gateway.api-platform.wso2.com/v1alpha1'",
 		})
 	}
 

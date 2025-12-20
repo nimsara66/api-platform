@@ -96,9 +96,9 @@ func setupTestTransformer(t *testing.T) (*LLMProviderTransformer, *storage.Confi
 	openAITemplate := &models.StoredLLMProviderTemplate{
 		ID: "openai-template-id",
 		Configuration: api.LLMProviderTemplate{
-			Version:  "ai.api-platform.wso2.com/v1",
-			Kind:     "LlmProviderTemplate",
-			Metadata: api.Metadata{Name: "openai"},
+			ApiVersion: "ai.api-platform.wso2.com/v1",
+			Kind:       "LlmProviderTemplate",
+			Metadata:   api.Metadata{Name: "openai"},
 			Spec: api.LLMProviderTemplateData{
 				DisplayName: "openai",
 				PromptTokens: &api.ExtractionIdentifier{
@@ -137,9 +137,9 @@ func TestTransform_MinimalProvider(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "minimal-provider",
 			Version:     "v1.0",
@@ -161,7 +161,7 @@ func TestTransform_MinimalProvider(t *testing.T) {
 
 	// Verify basic fields
 	assert.Equal(t, api.RestApi, result.Kind)
-	assert.Equal(t, api.GatewayApiPlatformWso2Comv1alpha1, result.ApiVersion)
+	assert.Equal(t, api.APIConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1, result.ApiVersion)
 
 	// Extract spec
 	spec, err := result.Spec.AsAPIConfigData()
@@ -178,9 +178,9 @@ func TestTransform_FullProvider(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "full-provider",
 			Version:     "v1.0",
@@ -243,9 +243,9 @@ func TestTransform_NonExistentTemplate(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -275,9 +275,9 @@ func TestTransform_DefaultContext(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -319,9 +319,9 @@ func TestTransform_CustomContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			provider := &api.LLMProviderConfiguration{
-				Version:  "ai.api-platform.wso2.com/v1",
-				Kind:     "LlmProvider",
-				Metadata: api.Metadata{Name: "openai-provider"},
+				ApiVersion: "ai.api-platform.wso2.com/v1",
+				Kind:       "LlmProvider",
+				Metadata:   api.Metadata{Name: "openai-provider"},
 				Spec: api.LLMProviderConfigData{
 					DisplayName: "test",
 					Version:     "v1.0",
@@ -357,9 +357,9 @@ func TestTransform_NoVhost(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -389,9 +389,9 @@ func TestTransform_WithVhost(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -427,9 +427,9 @@ func TestTransform_NoAuth(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -462,9 +462,9 @@ func TestTransform_ApiKeyAuth(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -513,9 +513,9 @@ func TestTransform_UnsupportedAuthType(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -553,9 +553,9 @@ func TestTransform_AllowAll_NoExceptions(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -599,9 +599,9 @@ func TestTransform_AllowAll_WithSingleException(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -680,9 +680,9 @@ func TestTransform_AllowAll_WithSingleExceptionWithWildCardMethod(t *testing.T) 
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -745,9 +745,9 @@ func TestTransform_AllowAll_WithSingleExceptionWithWildCardResource(t *testing.T
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -814,9 +814,9 @@ func TestTransform_AllowAll_WithMultipleExceptions(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -875,9 +875,9 @@ func TestTransform_DenyAll_NoExceptions(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -915,9 +915,9 @@ func TestTransform_DenyAll_WithSingleException(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -962,9 +962,9 @@ func TestTransform_DenyAll_WithSingleExceptionWithWildCardMethod(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1028,9 +1028,9 @@ func TestTransform_DenyAll_WithSingleExceptionWithWildCardResource(t *testing.T)
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1100,9 +1100,9 @@ func TestTransform_DenyAll_WithMultipleExceptions(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1146,9 +1146,9 @@ func TestTransform_InvalidAccessControlMode(t *testing.T) {
 	transformer, _ := setupTestTransformer(t)
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1200,9 +1200,9 @@ func TestTransform_WithSinglePolicy(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1286,9 +1286,9 @@ func TestTransform_WithMultiplePoliciesSameRoute(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1372,9 +1372,9 @@ func TestTransform_PolicyOnDifferentRoutes(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1444,9 +1444,9 @@ func TestTransform_PolicyOnWildcardMethod_1(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1519,9 +1519,9 @@ func TestTransform_PolicyOnWildcardMethod_2(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1599,9 +1599,9 @@ func TestTransform_PolicyOnNonExistentRoute(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1650,9 +1650,9 @@ func TestTransform_AuthWithAllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1770,9 +1770,9 @@ func TestTransform_EmptyExceptionsArray(t *testing.T) {
 	emptyExceptions := []api.RouteException{}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1818,9 +1818,9 @@ func TestTransform_DuplicateExceptionPaths(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1890,9 +1890,9 @@ func TestTransform_AllowAllWithPolicies(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -1963,9 +1963,9 @@ func TestTransform_APILevelPolicy_AllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2034,9 +2034,9 @@ func TestTransform_APILevelPolicy_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2125,9 +2125,9 @@ func TestTransform_MultipleAPILevelPolicies_AllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2193,9 +2193,9 @@ func TestTransform_UpstreamAuth_Plus_APILevelPolicy_AllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2275,9 +2275,9 @@ func TestTransform_UpstreamAuth_Plus_APILevelPolicy_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2386,9 +2386,9 @@ func TestTransform_APILevel_Plus_OperationLevel_Policies_AllowAll(t *testing.T) 
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2497,9 +2497,9 @@ func TestTransform_APILevel_Plus_OperationLevel_Policies_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2570,9 +2570,9 @@ func TestTransform_APILevelPolicy_WildcardMethods_AllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2635,9 +2635,9 @@ func TestTransform_NoAPILevelPolicy_OperationLevelOnly_AllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2707,9 +2707,9 @@ func TestTransform_ExceptionPrecedence_ExactMatch(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2783,9 +2783,9 @@ func TestTransform_ExceptionPrecedence_WildcardCoverage_InternalPath(t *testing.
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2876,9 +2876,9 @@ func TestTransform_ExceptionPrecedence_NestedWildcards(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -2962,9 +2962,9 @@ func TestTransform_ExceptionPrecedence_PolicyAllowedWhenNotCovered(t *testing.T)
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -3075,9 +3075,9 @@ func TestTransform_ExceptionPrecedence_MultipleOverlappingExceptions(t *testing.
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -3167,9 +3167,9 @@ func TestTransform_ExceptionPrecedence_WildcardMethodExpansion(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -3244,9 +3244,9 @@ func TestTransform_ExceptionPrecedence_PartialMethodCoverage(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -3341,9 +3341,9 @@ func TestTransform_ExceptionPrecedence_DeepNestedPath(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -3441,9 +3441,9 @@ func TestTransform_Auth_Plus_APILevel_Plus_OperationLevel_AllowAll(t *testing.T)
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -3563,9 +3563,9 @@ func TestTransform_Auth_Plus_APILevel_Plus_OperationLevel_DenyAll(t *testing.T) 
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -3698,9 +3698,9 @@ func TestTransform_MultipleAPILevelPolicies_Plus_Exceptions_Plus_OperationPolici
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -3900,9 +3900,9 @@ func TestTransform_AllPolicyTypes_WildcardExceptions_WildcardOperations_AllowAll
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4118,9 +4118,9 @@ func TestTransform_AllPolicyTypes_WildcardExceptions_WildcardOperations_DenyAll(
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4260,9 +4260,9 @@ func TestTransform_PolicyMoreGeneral_AccessControlSpecific_DenyAll(t *testing.T)
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4339,9 +4339,9 @@ func TestTransform_MultipleOverlappingExceptions_MultipleWildcardPolicies_DenyAl
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4423,9 +4423,9 @@ func TestTransform_PolicyMoreSpecific_AccessControlWildcard_DenyAll(t *testing.T
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4508,9 +4508,9 @@ func TestTransform_MultipleOverlappingWildcards_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4614,9 +4614,9 @@ func TestTransform_TripleNestedWildcards_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4716,9 +4716,9 @@ func TestTransform_SiblingWildcards_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4797,9 +4797,9 @@ func TestTransform_PathMatchingEdgeCases_AllowAll_PolicyMoreGeneral(t *testing.T
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4872,9 +4872,9 @@ func TestTransform_PathMatchingEdgeCases_AllowAll_NestedWildcardPolicies(t *test
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test",
 			Version:     "v1.0",
@@ -4979,9 +4979,9 @@ func TestTransform_ComplexCombined_MultipleAPILevelPolicies_NestedWildcards_Allo
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -5169,9 +5169,9 @@ func TestTransform_ComplexCombined_MultipleAPILevelPolicies_NestedWildcards_Deny
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -5352,9 +5352,9 @@ func TestTransform_ComplexCombined_MaximumComplexity_AllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -5645,9 +5645,9 @@ func TestTransform_ComplexCombined_MaximumComplexity_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -5809,9 +5809,9 @@ func TestTransform_PolicyWildcard_AllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -5882,9 +5882,9 @@ func TestTransform_PolicyWildcard_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -5964,9 +5964,9 @@ func TestTransform_PolicyWildcard_MatchingMultipleSpecificOperations_DenyAll(t *
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6036,9 +6036,9 @@ func TestTransform_PolicyWildcard_MatchingWildcardOperations_DenyAll(t *testing.
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6124,9 +6124,9 @@ func TestTransform_NestedPolicyWildcards_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6224,9 +6224,9 @@ func TestTransform_PolicyWildcard_OverlappingAccessControlWildcards_DenyAll(t *t
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6352,9 +6352,9 @@ func TestTransform_PolicyWildcard_AllowAll_WithExceptionPrecedence(t *testing.T)
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6443,9 +6443,9 @@ func TestTransform_DynamicOperationCreation_PolicyOnSpecific_AccessControlWildca
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6515,9 +6515,9 @@ func TestTransform_DynamicOperationCreation_MultiplePolicies_SameOperation_DenyA
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6584,9 +6584,9 @@ func TestTransform_DynamicOperationCreation_AllowAll_PolicyCreatesOperation(t *t
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6660,9 +6660,9 @@ func TestTransform_DynamicOperationCreation_OperationRegistry_PreventsDuplicates
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6744,9 +6744,9 @@ func TestTransform_DynamicOperationCreation_NestedSpecificPaths_DenyAll(t *testi
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6831,9 +6831,9 @@ func TestTransform_DynamicOperationCreation_AllowAll_MultipleSpecificPolicies(t 
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6911,9 +6911,9 @@ func TestTransform_OperationSorting_NonWildcardBeforeWildcard_DenyAll(t *testing
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -6964,9 +6964,9 @@ func TestTransform_OperationSorting_LongerPathsFirst_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7025,9 +7025,9 @@ func TestTransform_OperationSorting_CatchAllLast_AllowAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7096,7 +7096,7 @@ func TestTransform_OperationSorting_CatchAllLast_AllowAll(t *testing.T) {
 //	}
 //
 //	provider := &api.LLMProviderConfiguration{
-//		Version:  "ai.api-platform.wso2.com/v1",
+//		ApiVersion:  "gateway.api-platform.wso2.com/v1alpha1",
 //		Kind:     "LlmProvider",
 //		Metadata: api.Metadata{Name: "openai-provider"},
 //		Spec: api.LLMProviderConfigData{
@@ -7151,9 +7151,9 @@ func TestTransform_OperationSorting_ComplexMultipleWildcardLevels_DenyAll(t *tes
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7227,9 +7227,9 @@ func TestTransform_OperationSorting_MixedMethodsSamePath_DenyAll(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7301,9 +7301,9 @@ func TestTransform_OperationSorting_AllowAll_ComplexMixedOperations(t *testing.T
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7391,9 +7391,9 @@ func TestTransform_OperationSorting_SpecificityPreservation_DenyAll(t *testing.T
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7467,9 +7467,9 @@ func TestTransform_AllowAll_UserPolicyOnCatchAll_NotDenied(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7539,9 +7539,9 @@ func TestTransform_AllowAll_UserPolicyOnSpecificOperation_NotDenied(t *testing.T
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7624,9 +7624,9 @@ func TestTransform_AllowAll_DenyPolicyPreventsUserPolicy(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7734,9 +7734,9 @@ func TestTransform_AllowAll_PolicyOnAllowedPath_MixedExceptions(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -7868,9 +7868,9 @@ func TestTransform_AllowAll_WildcardPolicyWithExceptions(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -8032,9 +8032,9 @@ func TestTransform_AllowAll_MultiplePolicies_PartiallyDenied(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
@@ -8141,9 +8141,9 @@ func TestTransform_AllowAll_NestedPolicyWithPartialExceptions(t *testing.T) {
 	}
 
 	provider := &api.LLMProviderConfiguration{
-		Version:  "ai.api-platform.wso2.com/v1",
-		Kind:     "LlmProvider",
-		Metadata: api.Metadata{Name: "openai-provider"},
+		ApiVersion: "ai.api-platform.wso2.com/v1",
+		Kind:       "LlmProvider",
+		Metadata:   api.Metadata{Name: "openai-provider"},
 		Spec: api.LLMProviderConfigData{
 			DisplayName: "test-provider",
 			Version:     "v1.0",
