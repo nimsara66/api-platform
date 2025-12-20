@@ -99,6 +99,12 @@ const (
 		"  - action: SET\n" +
 		"    name: %s\n" +
 		"    value: %s\n"
+	PROXY_HOST__HEADER_POLICY_NAME    = "ModifyHeaders"
+	PROXY_HOST__HEADER_POLICY_VERSION = "v1.0.0"
+	PROXY_HOST__HEADER_POLICY_PARAMS  = "requestHeaders:\n" +
+		"  - action: SET\n" +
+		"    name: Host\n" +
+		"    value: %s\n"
 
 	ACCESS_CONTROL_DENY_POLICY_NAME    = "Respond"
 	ACCESS_CONTROL_DENY_POLICY_VERSION = "v1.0.0"

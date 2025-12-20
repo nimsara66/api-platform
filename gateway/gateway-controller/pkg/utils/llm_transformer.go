@@ -71,6 +71,19 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 	spec.Upstream.Main = api.Upstream{
 		Url: &upstream,
 	}
+	// If provider has vhost configured add a host adding policy
+	apiData, err := provider.Configuration.Spec.AsAPIConfigData()
+	if err != nil {
+		return nil, err
+	}
+	providerVhost := apiData.Vhosts.Main
+	// Add host header adding policy at API level
+	hParams, err := GetHostAdditionPolicyParams(providerVhost)
+
+	hh := api.Policy{
+		Name:    constants.PROXY_HOST__HEADER_POLICY_NAME,
+		Version: constants.PROXY_HOST__HEADER_POLICY_VERSION, Params: &hParams}
+	spec.Policies = &[]api.Policy{hh}
 
 	// Set proxy-specific vhost if provided
 	if proxy.Spec.Vhost != nil {
@@ -491,6 +504,16 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 // GetUpstreamAuthApikeyPolicyParams renders the policy params with given header and value
 func GetUpstreamAuthApikeyPolicyParams(header, value string) (map[string]interface{}, error) {
 	rendered := fmt.Sprintf(constants.UPSTREAM_AUTH_APIKEY_POLICY_PARAMS, header, value)
+	var m map[string]interface{}
+	if err := yaml.Unmarshal([]byte(rendered), &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// GetHostAdditionPolicyParams renders the policy params with given header and value
+func GetHostAdditionPolicyParams(value string) (map[string]interface{}, error) {
+	rendered := fmt.Sprintf(constants.PROXY_HOST__HEADER_POLICY_PARAMS, value)
 	var m map[string]interface{}
 	if err := yaml.Unmarshal([]byte(rendered), &m); err != nil {
 		return nil, err
