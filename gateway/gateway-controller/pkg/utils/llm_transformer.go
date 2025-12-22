@@ -74,16 +74,21 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 	// If provider has vhost configured add a host adding policy
 	apiData, err := provider.Configuration.Spec.AsAPIConfigData()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get API config from provider: %w", err)
 	}
-	providerVhost := apiData.Vhosts.Main
-	// Add host header adding policy at API level
-	hParams, err := GetHostAdditionPolicyParams(providerVhost)
+	if apiData.Vhosts != nil && apiData.Vhosts.Main != "" {
+		providerVhost := apiData.Vhosts.Main
+		// Add host header adding policy at API level
+		hParams, err := GetHostAdditionPolicyParams(providerVhost)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build host addition policy params: %w", err)
+		}
 
-	hh := api.Policy{
-		Name:    constants.PROXY_HOST__HEADER_POLICY_NAME,
-		Version: constants.PROXY_HOST__HEADER_POLICY_VERSION, Params: &hParams}
-	spec.Policies = &[]api.Policy{hh}
+		hh := api.Policy{
+			Name:    constants.PROXY_HOST__HEADER_POLICY_NAME,
+			Version: constants.PROXY_HOST__HEADER_POLICY_VERSION, Params: &hParams}
+		spec.Policies = &[]api.Policy{hh}
+	}
 
 	// Set proxy-specific vhost if provided
 	if proxy.Spec.Vhost != nil {
@@ -98,7 +103,6 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 	// Step 4: Build operations (AllowAll mode without exceptions)
 	// This follows the same pattern as transformProvider AllowAll mode but simplified
 	var ops []api.Operation
-	var apiLevelPolicies []api.Policy
 
 	// Phase 1: Create Catch-All Base Operations
 	// In proxy mode, we always allow all requests (no access control)
@@ -115,18 +119,6 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 	if proxy.Spec.Policies != nil {
 		for _, llmPol := range *proxy.Spec.Policies {
 			for _, pathEntry := range llmPol.Paths {
-				// Check if this is a root wildcard policy (API-level)
-				if pathEntry.Path == constants.BASE_PATH+constants.WILD_CARD {
-					// Add to API-level policies
-					policy := api.Policy{
-						Name:    llmPol.Name,
-						Version: llmPol.Version,
-						Params:  &pathEntry.Params,
-					}
-					apiLevelPolicies = append(apiLevelPolicies, policy)
-					continue // Skip operation-level attachment
-				}
-
 				// Expand wildcard methods in policy
 				var policyMethods []string
 				if len(pathEntry.Methods) == 1 && string(pathEntry.Methods[0]) == "*" {
@@ -184,11 +176,6 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 	}
 	ops = sortOperationsBySpecificity(ops)
 	spec.Operations = ops
-
-	// Attach API-level policies if any
-	if len(apiLevelPolicies) > 0 {
-		spec.Policies = &apiLevelPolicies
-	}
 
 	// Finalize output
 	var specUnion api.APIConfiguration_Spec

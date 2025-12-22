@@ -2884,7 +2884,7 @@ components:
           type: array
           items:
             type: string
-            enum: [ GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD ]
+            enum: [ GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD, "*" ]
         params:
           type: object
           description: JSON Schema describing the parameters accepted by this policy. This itself is a JSON Schema document.
