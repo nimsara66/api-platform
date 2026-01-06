@@ -150,5 +150,19 @@ CREATE INDEX IF NOT EXISTS idx_api_key_status ON api_keys(status);
 CREATE INDEX IF NOT EXISTS idx_api_key_expiry ON api_keys(expires_at);
 CREATE INDEX IF NOT EXISTS idx_created_by ON api_keys(created_by);
 
+-- Table for encrypted secrets
+CREATE TABLE IF NOT EXISTS secrets (
+    id TEXT PRIMARY KEY NOT NULL,
+    handle TEXT NOT NULL UNIQUE,        -- secret identifier (e.g., wso2-openai-api-key)
+    provider TEXT NOT NULL,
+    key_version TEXT NOT NULL,
+    ciphertext BLOB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for secrets updates
+CREATE INDEX IF NOT EXISTS idx_secrets_updated_at ON secrets(updated_at);
+
 -- Set schema version to 5
 PRAGMA user_version = 5;

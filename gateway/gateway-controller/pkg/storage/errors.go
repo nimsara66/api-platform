@@ -35,6 +35,24 @@ var (
 	ErrDatabaseUnavailable = errors.New("database storage is unavailable")
 )
 
+// SecretNotFoundError indicates the requested secret doesn't exist
+type SecretNotFoundError struct {
+	Handle string
+}
+
+func (e *SecretNotFoundError) Error() string {
+	return "secret not found: " + e.ID
+}
+
+// SecretAlreadyExistsError indicates a secret with this ID already exists
+type SecretAlreadyExistsError struct {
+	ID string
+}
+
+func (e *SecretAlreadyExistsError) Error() string {
+	return "secret already exists: " + e.ID
+}
+
 // IsConflictError checks if an error is a conflict error
 // This function allows handlers to distinguish between conflict errors
 // and other types of errors for appropriate logging and response handling

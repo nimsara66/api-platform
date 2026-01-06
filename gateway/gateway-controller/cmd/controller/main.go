@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/apikeyxds"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,8 +17,11 @@ import (
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/handlers"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/middleware"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/apikeyxds"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/controlplane"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/encryption"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/encryption/aesgcm"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/logger"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/models"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/policyxds"
@@ -39,7 +41,7 @@ var (
 
 func main() {
 	// Parse command-line flags
-	configPath := flag.String("config", "config/config.yaml", "Path to configuration file")
+	configPath := flag.String("config", "../configs/config.yaml", "Path to configuration file")
 	flag.Parse()
 
 	// Load configuration
@@ -107,8 +109,42 @@ func main() {
 	// Initialize in-memory API key store for xDS
 	apiKeyStore := storage.NewAPIKeyStore(log)
 
-	// Load configurations from database on startup (if persistent mode)
-	if cfg.IsPersistentMode() && db != nil {
+	// Initialize encryption providers for secret management
+	var encryptionProviderManager *encryption.ProviderManager
+	if len(cfg.GatewayController.Encryption.Providers) > 0 {
+		log.Info("Initializing encryption providers", zap.Int("provider_count", len(cfg.GatewayController.Encryption.Providers)))
+
+		// Initialize encryption providers
+		var providers []encryption.EncryptionProvider
+		for _, providerConfig := range cfg.GatewayController.Encryption.Providers {
+			switch providerConfig.Type {
+			case "aesgcm":
+				// Convert config keys to AES-GCM key configs
+				var keyConfigs []aesgcm.KeyConfig
+				for _, keyConf := range providerConfig.Keys {
+					keyConfigs = append(keyConfigs, aesgcm.KeyConfig{
+						Version:  keyConf.Version,
+						FilePath: keyConf.FilePath,
+					})
+				}
+
+				provider, err := aesgcm.NewAESGCMProvider(keyConfigs, log)
+				if err != nil {
+					log.Fatal("Failed to initialize AES-GCM provider", zap.Error(err))
+				}
+				providers = append(providers, provider)
+
+			default:
+				log.Fatal("Unsupported encryption provider type", zap.String("type", providerConfig.Type))
+			}
+		}
+
+		// Create provider manager
+		encryptionProviderManager, err = encryption.NewProviderManager(providers, log)
+		if err != nil {
+			log.Fatal("Failed to initialize provider manager", zap.Error(err))
+		}
+
 		log.Info("Loading configurations from database")
 		if err := storage.LoadFromDatabase(db, configStore); err != nil {
 			log.Fatal("Failed to load configurations from database", zap.Error(err))
@@ -301,7 +337,7 @@ func main() {
 
 	// Initialize API server with the configured validator and API key manager
 	apiServer := handlers.NewAPIServer(configStore, db, snapshotManager, policyManager, log, cpClient,
-		policyDefinitions, templateDefinitions, validator, &cfg.GatewayController.Router, apiKeyXDSManager)
+		policyDefinitions, templateDefinitions, validator, encryptionProviderManager, &cfg.GatewayController.Router, apiKeyXDSManager)
 
 	// Register API routes (includes certificate management endpoints from OpenAPI spec)
 	api.RegisterHandlers(router, apiServer)
@@ -393,6 +429,11 @@ func generateAuthConfig(config *config.Config) commonmodels.AuthConfig {
 		"GET /apis/:id/api-keys":                         {"admin", "consumer"},
 		"POST /apis/:id/api-keys/:apiKeyName/regenerate": {"admin", "consumer"},
 		"POST /apis/:id/revoke-api-key":                  {"admin", "consumer"},
+
+		"POST /secrets":       {"admin"},
+		"GET /secrets/:id":    {"admin", "developer"},
+		"PUT /secrets/:id":    {"admin"},
+		"DELETE /secrets/:id": {"admin"},
 
 		"GET /config_dump": {"admin"},
 	}

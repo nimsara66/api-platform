@@ -21,9 +21,13 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+
 	"github.com/wso2/api-platform/common/constants"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/apikeyxds"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/encryption"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/secrets"
 
 	"io"
 	"net/http"
@@ -62,6 +66,7 @@ type APIServer struct {
 	deploymentService    *utils.APIDeploymentService
 	mcpDeploymentService *utils.MCPDeploymentService
 	llmDeploymentService *utils.LLMDeploymentService
+	secretStorage        *secrets.SecretService
 	apiKeyService        *utils.APIKeyService
 	apiKeyXDSManager     *apikeyxds.APIKeyStateManager
 	controlPlaneClient   controlplane.ControlPlaneClient
@@ -80,6 +85,7 @@ func NewAPIServer(
 	policyDefinitions map[string]api.PolicyDefinition,
 	templateDefinitions map[string]*api.LLMProviderTemplate,
 	validator config.Validator,
+	encryptionProviderManager *encryption.ProviderManager,
 	routerConfig *config.RouterConfig,
 	apiKeyXDSManager *apikeyxds.APIKeyStateManager,
 ) *APIServer {
@@ -97,6 +103,7 @@ func NewAPIServer(
 		mcpDeploymentService: utils.NewMCPDeploymentService(store, db, snapshotManager),
 		llmDeploymentService: utils.NewLLMDeploymentService(store, db, snapshotManager, templateDefinitions,
 			deploymentService, routerConfig),
+		secretStorage:      secrets.NewSecretService(db, encryptionProviderManager, logger),
 		apiKeyService:      utils.NewAPIKeyService(store, db, apiKeyXDSManager),
 		apiKeyXDSManager:   apiKeyXDSManager,
 		controlPlaneClient: controlPlaneClient,
@@ -2157,6 +2164,300 @@ func (s *APIServer) waitForDeploymentAndNotify(configID string, correlationID st
 			// Continue waiting if status is still pending
 		}
 	}
+}
+
+// CreateSecret handles POST /secrets
+func (s *APIServer) CreateSecret(c *gin.Context) {
+	log := s.logger
+	correlationID := middleware.GetCorrelationID(c)
+
+	log.Debug("Creating secret", zap.String("correlation_id", correlationID))
+
+	// Parse and validate request body
+	var req struct {
+		Id    string `json:"id" binding:"required"`
+		Value string `json:"value" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Warn("Invalid request body for secret creation",
+			zap.Error(err),
+			zap.String("correlation_id", correlationID))
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Validate secret ID
+	if req.Id == "" {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Missing required field: id",
+		})
+		return
+	}
+	if len(req.Id) > 255 {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Secret ID too long (max 255 characters)",
+		})
+		return
+	}
+
+	// Validate secret value
+	if req.Value == "" {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Missing required field: value",
+		})
+		return
+	}
+
+	// Create secret
+	secret, err := s.secretStorage.Create(req.Id, req.Value, correlationID)
+	if err != nil {
+		// Check for duplicate error
+		var alreadyExistsErr *storage.SecretAlreadyExistsError
+		if errors.As(err, &alreadyExistsErr) {
+			c.JSON(http.StatusConflict, api.ErrorResponse{
+				Status:  "error",
+				Message: "Secret already exists",
+			})
+			return
+		}
+
+		// Generic error for encryption failures (security-first)
+		log.Error("Failed to create secret",
+			zap.String("secret_id", req.Id),
+			zap.String("correlation_id", correlationID),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, api.ErrorResponse{
+			Status:  "error",
+			Message: "Failed to encrypt secret",
+		})
+		return
+	}
+
+	log.Info("Secret created successfully",
+		zap.String("secret_id", secret.ID),
+		zap.String("correlation_id", correlationID))
+
+	// Return created secret
+	c.JSON(http.StatusCreated, gin.H{
+		"id":         secret.ID,
+		"value":      secret.Value,
+		"created_at": secret.CreatedAt,
+		"updated_at": secret.UpdatedAt,
+	})
+}
+
+// GetSecret handles GET /secrets/{id}
+func (s *APIServer) GetSecret(c *gin.Context, id string) {
+	log := s.logger
+	correlationID := middleware.GetCorrelationID(c)
+
+	log.Debug("Retrieving secret",
+		zap.String("secret_id", id),
+		zap.String("correlation_id", correlationID))
+
+	// Validate secret ID format
+	if id == "" {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Missing required field: id",
+		})
+		return
+	}
+	if len(id) > 255 {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Secret ID too long (max 255 characters)",
+		})
+		return
+	}
+
+	// Retrieve secret
+	secret, err := s.secretStorage.Get(id, correlationID)
+	if err != nil {
+		// Check for not found error
+		var notFoundErr *storage.SecretNotFoundError
+		if errors.As(err, &notFoundErr) {
+			c.JSON(http.StatusNotFound, api.ErrorResponse{
+				Status:  "error",
+				Message: "Secret not found",
+			})
+			return
+		}
+
+		// Generic error for decryption failures (security-first)
+		log.Error("Failed to retrieve secret",
+			zap.String("secret_id", id),
+			zap.String("correlation_id", correlationID),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, api.ErrorResponse{
+			Status:  "error",
+			Message: "Failed to decrypt secret",
+		})
+		return
+	}
+
+	log.Debug("Secret retrieved successfully",
+		zap.String("secret_id", secret.ID),
+		zap.String("correlation_id", correlationID))
+
+	// Return secret
+	c.JSON(http.StatusOK, gin.H{
+		"id":         secret.ID,
+		"value":      secret.Value,
+		"created_at": secret.CreatedAt,
+		"updated_at": secret.UpdatedAt,
+	})
+}
+
+// UpdateSecret handles PUT /secrets/{id}
+func (s *APIServer) UpdateSecret(c *gin.Context, id string) {
+	log := s.logger
+	correlationID := middleware.GetCorrelationID(c)
+
+	log.Debug("Updating secret",
+		zap.String("secret_id", id),
+		zap.String("correlation_id", correlationID))
+
+	// Validate secret ID format
+	if id == "" {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Missing required field: id",
+		})
+		return
+	}
+	if len(id) > 255 {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Secret ID too long (max 255 characters)",
+		})
+		return
+	}
+
+	// Parse and validate request body
+	var req struct {
+		Value string `json:"value" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Warn("Invalid request body for secret update",
+			zap.Error(err),
+			zap.String("secret_id", id),
+			zap.String("correlation_id", correlationID))
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Validate secret value
+	if req.Value == "" {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Missing required field: value",
+		})
+		return
+	}
+
+	// Update secret
+	secret, err := s.secretStorage.Update(id, req.Value, correlationID)
+	if err != nil {
+		// Check for not found error
+		var notFoundErr *storage.SecretNotFoundError
+		if errors.As(err, &notFoundErr) {
+			c.JSON(http.StatusNotFound, api.ErrorResponse{
+				Status:  "error",
+				Message: "Secret not found",
+			})
+			return
+		}
+
+		// Generic error for encryption failures
+		log.Error("Failed to update secret",
+			zap.String("secret_id", id),
+			zap.String("correlation_id", correlationID),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, api.ErrorResponse{
+			Status:  "error",
+			Message: "Failed to encrypt secret",
+		})
+		return
+	}
+
+	log.Info("Secret updated successfully",
+		zap.String("secret_id", secret.ID),
+		zap.String("correlation_id", correlationID))
+
+	// Return updated secret
+	c.JSON(http.StatusOK, gin.H{
+		"id":         secret.ID,
+		"value":      secret.Value,
+		"created_at": secret.CreatedAt,
+		"updated_at": secret.UpdatedAt,
+	})
+}
+
+// DeleteSecret handles DELETE /secrets/{id}
+func (s *APIServer) DeleteSecret(c *gin.Context, id string) {
+	log := s.logger
+	correlationID := middleware.GetCorrelationID(c)
+
+	log.Debug("Deleting secret",
+		zap.String("secret_id", id),
+		zap.String("correlation_id", correlationID))
+
+	// Validate secret ID format
+	if id == "" {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Missing required field: id",
+		})
+		return
+	}
+	if len(id) > 255 {
+		c.JSON(http.StatusBadRequest, api.ErrorResponse{
+			Status:  "error",
+			Message: "Secret ID too long (max 255 characters)",
+		})
+		return
+	}
+
+	// Delete secret
+	if err := s.secretStorage.Delete(id, correlationID); err != nil {
+		// Check for not found error
+		var notFoundErr *storage.SecretNotFoundError
+		if errors.As(err, &notFoundErr) {
+			c.JSON(http.StatusNotFound, api.ErrorResponse{
+				Status:  "error",
+				Message: "Secret not found",
+			})
+			return
+		}
+
+		// Generic error for storage failures
+		log.Error("Failed to delete secret",
+			zap.String("secret_id", id),
+			zap.String("correlation_id", correlationID),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, api.ErrorResponse{
+			Status:  "error",
+			Message: "Failed to delete secret",
+		})
+		return
+	}
+
+	log.Info("Secret deleted successfully",
+		zap.String("secret_id", id),
+		zap.String("correlation_id", correlationID))
+
+	// Return 204 No Content on successful deletion
+	c.Status(http.StatusNoContent)
 }
 
 // GetConfigDump implements the GET /config_dump endpoint

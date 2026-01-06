@@ -1699,6 +1699,303 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  
+  /secrets:
+    post:
+      tags:
+        - secrets
+      summary: Create a new secret
+      description: |
+        Stores a new secret encrypted at rest. The secret ID must be unique.
+        The value is encrypted using the primary encryption provider before persistence.
+      operationId: createSecret
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretCreateRequest'
+            examples:
+              simple:
+                summary: Basic secret
+                value:
+                  id: "database-password"
+                  value: "sup3rs3cr3t!"
+              api-key:
+                summary: API key
+                value:
+                  id: "external-api-key"
+                  value: "sk-1234567890abcdef"
+      responses:
+        '201':
+          description: Secret created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretResponse'
+              examples:
+                created:
+                  summary: Successful creation
+                  value:
+                    id: "database-password"
+                    value: "sup3rs3cr3t!"
+                    created_at: "2026-01-05T10:30:00Z"
+                    updated_at: "2026-01-05T10:30:00Z"
+        '400':
+          description: Bad request - missing or invalid fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing-id:
+                  summary: Missing required field
+                  value:
+                    error: "bad_request"
+                    message: "Missing required field: id"
+                    correlation_id: "req-abc-123"
+                invalid-value:
+                  summary: Invalid value
+                  value:
+                    error: "bad_request"
+                    message: "Secret value too large (max 10KB)"
+                    correlation_id: "req-def-456"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unauthorized:
+                  summary: Authentication missing
+                  value:
+                    error: "unauthorized"
+                    message: "Authentication required"
+                    correlation_id: "req-ghi-789"
+        '409':
+          description: Conflict - secret with this ID already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicate:
+                  summary: Duplicate ID
+                  value:
+                    error: "conflict"
+                    message: "Secret already exists"
+                    correlation_id: "req-jkl-012"
+        '500':
+          description: Internal server error - encryption failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                encryption-error:
+                  summary: Encryption failure
+                  value:
+                    error: "internal_error"
+                    message: "Failed to encrypt secret"
+                    correlation_id: "req-mno-345"
+
+  /secrets/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Unique secret identifier
+        schema:
+          type: string
+        examples:
+          simple:
+            summary: Simple ID
+            value: "database-password"
+          complex:
+            summary: Namespaced ID
+            value: "prod.db.main.password"
+
+    get:
+      tags:
+        - secrets
+      summary: Retrieve a secret
+      description: |
+        Retrieves and decrypts a secret. The secret value is decrypted using the
+        encryption provider chain before being returned. If all providers fail to
+        decrypt the secret, a 500 error is returned with a generic message.
+      operationId: getSecret
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Secret retrieved and decrypted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretResponse'
+              examples:
+                success:
+                  summary: Successful retrieval
+                  value:
+                    id: "database-password"
+                    value: "sup3rs3cr3t!"
+                    created_at: "2026-01-05T10:30:00Z"
+                    updated_at: "2026-01-05T10:30:00Z"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Secret not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not-found:
+                  summary: Secret does not exist
+                  value:
+                    error: "not_found"
+                    message: "Secret not found"
+                    correlation_id: "req-pqr-678"
+        '500':
+          description: Internal server error - decryption failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                decryption-error:
+                  summary: Decryption failure (generic message for security)
+                  value:
+                    error: "internal_error"
+                    message: "Failed to decrypt secret"
+                    correlation_id: "req-stu-901"
+
+    put:
+      tags:
+        - secrets
+      summary: Update a secret
+      description: |
+        Updates an existing secret with a new value. The new value is encrypted
+        using the current primary encryption provider, enabling automatic migration
+        to newer keys during updates. Old secrets remain readable via the provider chain.
+      operationId: updateSecret
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretUpdateRequest'
+            examples:
+              update:
+                summary: Update secret value
+                value:
+                  value: "n3w_p@ssw0rd!"
+      responses:
+        '200':
+          description: Secret updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretResponse'
+              examples:
+                updated:
+                  summary: Successful update
+                  value:
+                    id: "database-password"
+                    value: "n3w_p@ssw0rd!"
+                    created_at: "2026-01-05T10:30:00Z"
+                    updated_at: "2026-01-05T11:45:00Z"
+        '400':
+          description: Bad request - missing or invalid value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing-value:
+                  summary: Missing value field
+                  value:
+                    error: "bad_request"
+                    message: "Missing required field: value"
+                    correlation_id: "req-vwx-234"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Secret not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not-found:
+                  summary: Secret does not exist
+                  value:
+                    error: "not_found"
+                    message: "Secret not found"
+                    correlation_id: "req-yza-567"
+        '500':
+          description: Internal server error - encryption failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - secrets
+      summary: Delete a secret
+      description: |
+        Permanently deletes a secret from the database. This is a hard delete with
+        no recovery mechanism. The operation is idempotent - deleting a non-existent
+        secret returns 404.
+      operationId: deleteSecret
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Secret deleted successfully (no content)
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Secret not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not-found:
+                  summary: Secret does not exist
+                  value:
+                    error: "not_found"
+                    message: "Secret not found"
+                    correlation_id: "req-bcd-890"
+        '500':
+          description: Internal server error - database failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /config_dump:
     get:
@@ -3418,6 +3715,81 @@ components:
         status:
           type: string
           example: success
+
+    SecretCreateRequest:
+      type: object
+      required:
+        - id
+        - value
+      properties:
+        id:
+          type: string
+          description: |
+            Unique identifier for the secret. Must be unique across all secrets.
+            Recommended format: alphanumeric with hyphens/underscores.
+          minLength: 1
+          maxLength: 255
+          example: "database-password"
+        value:
+          type: string
+          description: |
+            The secret value to encrypt and store. Will be encrypted at rest
+            using the primary encryption provider. Maximum size: 10KB.
+          minLength: 1
+          maxLength: 10240
+          example: "sup3rs3cr3t!"
+      example:
+        id: "api-key-production"
+        value: "sk-abcd1234efgh5678"
+
+    SecretUpdateRequest:
+      type: object
+      required:
+        - value
+      properties:
+        value:
+          type: string
+          description: |
+            New secret value to encrypt and store. The secret will be re-encrypted
+            using the current primary encryption provider, enabling automatic key
+            rotation. Maximum size: 10KB.
+          minLength: 1
+          maxLength: 10240
+          example: "n3w_s3cr3t_v@lu3!"
+      example:
+        value: "updated-secret-value"
+
+    SecretResponse:
+      type: object
+      required:
+        - id
+        - value
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: Unique secret identifier
+          example: "database-password"
+        value:
+          type: string
+          description: Decrypted secret value (plaintext)
+          example: "sup3rs3cr3t!"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the secret was created (UTC)
+          example: "2026-01-05T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the secret was last updated (UTC)
+          example: "2026-01-05T11:45:00Z"
+      example:
+        id: "prod-db-password"
+        value: "my-secret-password"
+        created_at: "2026-01-05T10:00:00Z"
+        updated_at: "2026-01-05T10:00:00Z"
 
     ConfigDumpAPIItem:
       type: object

@@ -58,6 +58,7 @@ type GatewayController struct {
 	Policies     PoliciesConfig     `koanf:"policies"`
 	LLM          LLMConfig          `koanf:"llm"`
 	Auth         AuthConfig         `koanf:"auth"`
+	Encryption   EncryptionConfig   `koanf:"encryption"`
 }
 
 // AuthConfig holds authentication related configuration
@@ -472,6 +473,19 @@ func defaultConfig() *Config {
 					Issuer:      "",
 					RolesClaim:  "",
 					RoleMapping: map[string][]string{},
+				},
+			},
+			Encryption: EncryptionConfig{
+				Providers: []ProviderConfig{
+					{
+						Type: "aesgcm",
+						Keys: []EncryptionKeyConfig{
+							{
+								Version:  "aesgcm256-v1",
+								FilePath: "./aesgcm-keys/default-aesgcm256-v1.bin",
+							},
+						},
+					},
 				},
 			},
 			Logging: LoggingConfig{
@@ -1104,4 +1118,23 @@ func (c *Config) IsAccessLogsEnabled() bool {
 // IsPolicyEngineEnabled returns true if policy engine is enabled
 func (c *Config) IsPolicyEngineEnabled() bool {
 	return c.GatewayController.Router.PolicyEngine.Enabled
+}
+
+// EncryptionConfig holds encryption provider configuration
+type EncryptionConfig struct {
+	Providers []ProviderConfig `koanf:"providers"`
+}
+
+// ProviderConfig defines configuration for a single encryption provider
+type ProviderConfig struct {
+	Type string                `koanf:"type"` // "aesgcm"
+	Keys []EncryptionKeyConfig `koanf:"keys"`
+	// Additional provider-specific configuration
+	Config map[string]interface{} `koanf:"config"`
+}
+
+// EncryptionKeyConfig defines a single encryption key
+type EncryptionKeyConfig struct {
+	Version  string `koanf:"version"` // Key identifier (e.g., "key-v1")
+	FilePath string `koanf:"file"`    // Path to raw binary key file
 }
