@@ -102,7 +102,7 @@ func NewAPIServer(
 		deploymentService:    deploymentService,
 		mcpDeploymentService: utils.NewMCPDeploymentService(store, db, snapshotManager),
 		llmDeploymentService: utils.NewLLMDeploymentService(store, db, snapshotManager, templateDefinitions,
-			deploymentService, routerConfig),
+			deploymentService, encryptionProviderManager, routerConfig),
 		secretStorage:      secrets.NewSecretService(db, encryptionProviderManager, logger),
 		apiKeyService:      utils.NewAPIKeyService(store, db, apiKeyXDSManager),
 		apiKeyXDSManager:   apiKeyXDSManager,

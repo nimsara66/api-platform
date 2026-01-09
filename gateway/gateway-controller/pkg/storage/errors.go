@@ -41,7 +41,7 @@ type SecretNotFoundError struct {
 }
 
 func (e *SecretNotFoundError) Error() string {
-	return "secret not found: " + e.ID
+	return "secret not found: " + e.Handle
 }
 
 // SecretAlreadyExistsError indicates a secret with this ID already exists

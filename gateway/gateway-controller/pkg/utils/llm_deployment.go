@@ -26,6 +26,7 @@ import (
 
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/encryption"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/models"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/storage"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/xds"
@@ -51,13 +52,15 @@ type LLMDeploymentService struct {
 	parser              *config.Parser
 	validator           *config.LLMValidator
 	transformer         Transformer
+	providerManager     *encryption.ProviderManager
 	routerConfig        *config.RouterConfig
 }
 
 // NewLLMDeploymentService initializes the service
 func NewLLMDeploymentService(store *storage.ConfigStore, db storage.Storage,
 	snapshotManager *xds.SnapshotManager, templateDefinitions map[string]*api.LLMProviderTemplate,
-	deploymentService *APIDeploymentService, routerConfig *config.RouterConfig) *LLMDeploymentService {
+	deploymentService *APIDeploymentService, providerManager *encryption.ProviderManager,
+	routerConfig *config.RouterConfig) *LLMDeploymentService {
 	service := &LLMDeploymentService{
 		store:               store,
 		db:                  db,
@@ -66,6 +69,7 @@ func NewLLMDeploymentService(store *storage.ConfigStore, db storage.Storage,
 		deploymentService:   deploymentService,
 		parser:              config.NewParser(),
 		validator:           config.NewLLMValidator(),
+		providerManager:     providerManager,
 		transformer:         NewLLMProviderTransformer(store, routerConfig),
 	}
 
@@ -102,6 +106,10 @@ func (s *LLMDeploymentService) DeployLLMProviderConfiguration(params LLMDeployme
 	}
 
 	// Transform to APIConfiguration
+	//errs := s.providerManager.ResolveSecrets(&providerConfig)
+	//if errs != nil {
+	//	return nil, errs
+	//}
 	_, err := s.transformer.Transform(&providerConfig, &apiConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform LLM provider to API configuration: %w", err)

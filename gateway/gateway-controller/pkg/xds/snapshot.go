@@ -81,6 +81,8 @@ func (sm *SnapshotManager) UpdateSnapshot(ctx context.Context, correlationID str
 	// Get all configurations from in-memory store
 	configs := sm.store.GetAll()
 
+	// resolve configs
+
 	// Translate configurations to Envoy resources if this is not event gw
 	//resources, err := sm.translator.TranslateConfigs(configs, correlationID)
 	// If event gw,

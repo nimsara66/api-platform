@@ -1652,6 +1652,7 @@ func (s *SQLiteStorage) GetSecret(handle string) (*models.Secret, error) {
 	var secret models.Secret
 	err := s.db.QueryRow(query, handle).Scan(
 		&secret.ID,
+		&secret.Handle,
 		&secret.Provider,
 		&secret.KeyVersion,
 		&secret.Ciphertext,

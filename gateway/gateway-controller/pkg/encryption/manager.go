@@ -3,17 +3,21 @@ package encryption
 import (
 	"fmt"
 
+	"github.com/mitchellh/reflectwalk"
+	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/generated"
+	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/storage"
 	"go.uber.org/zap"
 )
 
 // ProviderManager orchestrates the encryption provider chain
 type ProviderManager struct {
 	providers []EncryptionProvider
+	storage   storage.Storage
 	logger    *zap.Logger
 }
 
 // NewProviderManager creates a new provider manager with the given providers
-func NewProviderManager(providers []EncryptionProvider, logger *zap.Logger) (*ProviderManager, error) {
+func NewProviderManager(providers []EncryptionProvider, storage storage.Storage, logger *zap.Logger) (*ProviderManager, error) {
 	if len(providers) == 0 {
 		return nil, fmt.Errorf("at least one encryption provider is required")
 	}
@@ -32,6 +36,7 @@ func NewProviderManager(providers []EncryptionProvider, logger *zap.Logger) (*Pr
 
 	return &ProviderManager{
 		providers: providers,
+		storage:   storage,
 		logger:    logger,
 	}, nil
 }
@@ -127,4 +132,28 @@ func (m *ProviderManager) GetPrimaryProvider() EncryptionProvider {
 // GetProviders returns all configured providers
 func (m *ProviderManager) GetProviders() []EncryptionProvider {
 	return m.providers
+}
+
+func (m *ProviderManager) ResolveSecrets(cfg *api.LLMProviderConfiguration) error {
+	resolver := NewSecretResolver(m)
+
+	err := reflectwalk.Walk(cfg, resolver)
+	if err != nil {
+		return fmt.Errorf("failed to walk config: %w", err)
+	}
+
+	// Log secret resolution errors but do NOT fail
+	if len(resolver.errors) > 0 {
+		for _, err := range resolver.errors {
+			m.logger.Error("Secret resolution error", zap.Error(err))
+		}
+
+		m.logger.Warn("Completed secret resolution with errors",
+			zap.Int("error_count", len(resolver.errors)),
+		)
+	} else {
+		m.logger.Debug("Secret resolution completed successfully")
+	}
+
+	return nil
 }
