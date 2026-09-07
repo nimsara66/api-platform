@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	api "github.com/wso2/api-platform/gateway/gateway-controller/pkg/api/management"
@@ -86,6 +87,11 @@ func (s *APIServer) CreateAPIKey(w http.ResponseWriter, r *http.Request, id stri
 			})
 		} else if storage.IsConflictError(err) || strings.Contains(err.Error(), "already exists") {
 			httputil.WriteJSON(w, http.StatusConflict, api.ErrorResponse{
+				Status:  "error",
+				Message: err.Error(),
+			})
+		} else if strings.Contains(err.Error(), "API key limit exceeded") {
+			httputil.WriteJSON(w, http.StatusBadRequest, api.ErrorResponse{
 				Status:  "error",
 				Message: err.Error(),
 			})
@@ -365,6 +371,10 @@ func (s *APIServer) ListAPIKeys(w http.ResponseWriter, r *http.Request, id strin
 		CorrelationID: correlationID,
 		Logger:        log,
 	}
+	if err := setAPIKeyPagination(r, &params); err != nil {
+		httputil.WriteJSON(w, http.StatusBadRequest, api.ErrorResponse{Status: "error", Message: err.Error()})
+		return
+	}
 
 	result, err := s.apiKeyService.ListAPIKeys(params)
 	if err != nil {
@@ -394,6 +404,21 @@ func (s *APIServer) ListAPIKeys(w http.ResponseWriter, r *http.Request, id strin
 
 	// Return the response using the generated schema
 	httputil.WriteJSON(w, http.StatusOK, result.Response)
+}
+
+func setAPIKeyPagination(r *http.Request, params *utils.ListAPIKeyParams) error {
+	for name, target := range map[string]*int{"limit": &params.Limit, "offset": &params.Offset} {
+		value := strings.TrimSpace(r.URL.Query().Get(name))
+		if value == "" {
+			continue
+		}
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			return fmt.Errorf("%s must be a non-negative integer", name)
+		}
+		*target = parsed
+	}
+	return nil
 }
 
 // resolveAPIIDByHandle resolves an API identifier (deployment ID or handle) to the internal deployment ID.

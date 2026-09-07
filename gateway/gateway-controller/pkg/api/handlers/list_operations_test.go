@@ -126,6 +126,38 @@ func TestListAPIKeysAPINotFound(t *testing.T) {
 	assert.Equal(t, "error", response.Status)
 }
 
+func TestSetAPIKeyPagination(t *testing.T) {
+	tests := []struct {
+		name       string
+		query      string
+		wantLimit  int
+		wantOffset int
+		wantErr    bool
+	}{
+		{name: "defaults", query: "", wantLimit: 0, wantOffset: 0},
+		{name: "parses values", query: "limit=10&offset=2", wantLimit: 10, wantOffset: 2},
+		{name: "allows zero", query: "limit=0&offset=0", wantLimit: 0, wantOffset: 0},
+		{name: "rejects negative limit", query: "limit=-1", wantErr: true},
+		{name: "rejects negative offset", query: "offset=-1", wantErr: true},
+		{name: "rejects malformed value", query: "limit=many", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := http.NewRequest(http.MethodGet, "/rest-apis/api/api-keys?"+tt.query, nil)
+			require.NoError(t, err)
+			params := &utils.ListAPIKeyParams{}
+			err = setAPIKeyPagination(r, params)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantLimit, params.Limit)
+			assert.Equal(t, tt.wantOffset, params.Offset)
+		})
+	}
+}
+
 // TestListLLMProviderTemplatesEmpty tests listing with no templates
 func TestListLLMProviderTemplatesEmpty(t *testing.T) {
 	server := createTestServerWithLLM()

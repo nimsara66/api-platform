@@ -147,6 +147,8 @@ type ListAPIKeyParams struct {
 	User          *commonmodels.AuthContext // User who initiated the request
 	CorrelationID string                    // Correlation ID for tracking
 	Logger        *slog.Logger              // Logger instance
+	Limit         int                       // Maximum number of keys to return; zero means no limit.
+	Offset        int                       // Number of matching keys to skip.
 }
 
 // ListAPIKeyResult contains the result of listing API keys
@@ -915,6 +917,18 @@ func (s *APIKeyService) ListAPIKeys(params ListAPIKeyParams) (*ListAPIKeyResult,
 		}
 	}
 
+	// Apply pagination after filtering so totalCount describes the complete matching set.
+	totalCount := len(activeUserAPIKeys)
+	start := params.Offset
+	if start > totalCount {
+		start = totalCount
+	}
+	end := totalCount
+	if params.Limit > 0 && start+params.Limit < end {
+		end = start + params.Limit
+	}
+	activeUserAPIKeys = activeUserAPIKeys[start:end]
+
 	// Build response API keys
 	var responseAPIKeys []api.APIKey
 	for _, key := range activeUserAPIKeys {
@@ -935,8 +949,6 @@ func (s *APIKeyService) ListAPIKeys(params ListAPIKeyParams) (*ListAPIKeyResult,
 
 	// Build the list response
 	status := "success"
-	totalCount := len(responseAPIKeys)
-
 	result := &ListAPIKeyResult{
 		Response: api.APIKeyListResponse{
 			Status:     &status,
@@ -1266,17 +1278,19 @@ func (s *APIKeyService) updateAPIKeyFromRequest(existingKey *models.APIKey, requ
 	}
 
 	updatedKey := &models.APIKey{
-		UUID:         existingKey.UUID,
-		Name:         existingKey.Name,
-		APIKey:       hashedAPIKeyValue, // Store hashed key
-		MaskedAPIKey: maskedAPIKeyValue, // Store masked key for display
-		ArtifactUUID: existingKey.ArtifactUUID,
-		Status:       models.APIKeyStatusActive,
-		CreatedAt:    existingKey.CreatedAt,
-		CreatedBy:    existingKey.CreatedBy,
-		UpdatedAt:    keyUpdatedAt,
-		ExpiresAt:    expiresAt,
-		Source:       existingKey.Source, // Preserve source from original key.
+		UUID:          existingKey.UUID,
+		Name:          existingKey.Name,
+		APIKey:        hashedAPIKeyValue, // Store hashed key
+		MaskedAPIKey:  maskedAPIKeyValue, // Store masked key for display
+		ArtifactUUID:  existingKey.ArtifactUUID,
+		Status:        models.APIKeyStatusActive,
+		CreatedAt:     existingKey.CreatedAt,
+		CreatedBy:     existingKey.CreatedBy,
+		UpdatedAt:     keyUpdatedAt,
+		ExpiresAt:     expiresAt,
+		Source:        existingKey.Source, // Preserve source from original key.
+		ExternalRefId: existingKey.ExternalRefId,
+		Issuer:        existingKey.Issuer,
 	}
 
 	return updatedKey, nil
