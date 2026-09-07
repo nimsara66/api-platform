@@ -41,6 +41,8 @@ samples/
 # ── Host-side operational scripts (setup.sh, seed-samples.sh) — run against
 # a running container from the host, never executed inside it ──────
 scripts/
+!scripts/
+!scripts/instrument-browser-coverage.js
 
 # ── Build tooling ─────────────────────────────────────────────────
 Makefile

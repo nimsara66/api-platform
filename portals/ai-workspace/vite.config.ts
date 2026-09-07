@@ -20,6 +20,7 @@ import { defineConfig } from 'vite'
 import type { PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import basicSsl from '@vitejs/plugin-basic-ssl'
+import istanbul from 'vite-plugin-istanbul'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -121,6 +122,17 @@ const plugins: PluginOption[] = [
   readyLogPlugin,
   runtimeConfigScriptPlugin,
 ]
+
+if (process.env.VITE_COVERAGE === 'true') {
+  plugins.push(istanbul({
+    checkProd: false,
+    forceBuildInstrument: true,
+    cwd: __dirname,
+    include: ['src/**/*'],
+    exclude: ['**/*.test.*', '**/node_modules/**'],
+    requireEnv: false,
+  }) as unknown as PluginOption)
+}
 
 export default defineConfig({
   plugins,
