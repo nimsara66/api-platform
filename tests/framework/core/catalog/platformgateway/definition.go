@@ -84,6 +84,13 @@ func PlatformGateway() *components.Definition {
 				// seeding path is never executed at all. The legacy suite mounted this and so
 				// exercised that path incidentally; dropping the mount quietly retired it.
 				"certificates": "gateway/gateway-controller/certificates",
+
+				// The llm-cost policy's pricing table. Its config default is
+				// /etc/policy-engine/llm-pricing/model_prices.json, matching the product's own
+				// docker-compose bind mount — the image itself only bakes a copy at
+				// /home/wso2/conf/llm-pricing/model_prices.json, which is not on that default
+				// path.
+				"llm-pricing/model_prices.json": "gateway/configs/llm-pricing/model_prices.json",
 			},
 
 			// config.toml is assembled per block from the product's shipped config plus

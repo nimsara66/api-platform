@@ -84,6 +84,8 @@ func flushRunnerOutput(dst io.Writer, label string, buf *bytes.Buffer) {
 	_, _ = io.Copy(dst, buf)
 }
 
+// Run executes a resolved suite topology against t, wiring up its declared dependencies
+// and reporting each runner's output.
 func Run(t *testing.T, resolved *topology.Resolved, deps Deps) {
 	t.Helper()
 	if resolved == nil {

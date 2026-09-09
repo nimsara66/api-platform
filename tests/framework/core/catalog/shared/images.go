@@ -45,6 +45,9 @@ const EnvCoverageMode = "IT_COVERAGE"
 // per block: a suite mixing both types needs block wiring, which nothing needs yet.
 const EnvGatewayFunctionalityType = "IT_GATEWAY_FUNCTIONALITY_TYPE"
 
+// GatewayFunctionalityType reports the configured gateway functionality type for this
+// suite ("regular" or "ai"), read from EnvGatewayFunctionalityType with "regular" as
+// the default.
 func GatewayFunctionalityType() string {
 	if v := strings.TrimSpace(os.Getenv(EnvGatewayFunctionalityType)); v != "" {
 		return v

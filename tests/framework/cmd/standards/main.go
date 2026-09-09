@@ -49,9 +49,9 @@ var uniqueFieldRegistry = []uniqueFieldRule{
 var yamlField = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.-]*\s*:`)
 var shellSleep = regexp.MustCompile(`(^|[;&|{])\s*sleep\s+`)
 var cleanupCreationMethods = map[string]struct{}{
-	"createResource":        {},
-	"createAPI":             {},
-	"createJSONAPI":         {},
+	"createResource":             {},
+	"createAPI":                  {},
+	"createJSONAPI":              {},
 	"createResourceFromTemplate": {},
 }
 
@@ -423,7 +423,7 @@ func checkDocumentation(root string) []string {
 			}
 			filePath := filepath.Join(path, entry.Name())
 			fileSet := token.NewFileSet()
-			file, parseErr := parser.ParseFile(fileSet, filePath, nil, 0)
+			file, parseErr := parser.ParseFile(fileSet, filePath, nil, parser.ParseComments)
 			if parseErr != nil {
 				issues = append(issues, fmt.Sprintf("%s: parse error: %v", filePath, parseErr))
 				continue
