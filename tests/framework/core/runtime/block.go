@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/api-platform/tests/framework/core/actor"
 	"github.com/wso2/api-platform/tests/framework/core/components"
 	"github.com/wso2/api-platform/tests/framework/core/coverage"
+	"github.com/wso2/api-platform/tests/framework/core/logcapture"
 	"github.com/wso2/api-platform/tests/framework/core/topology"
 	"github.com/wso2/api-platform/tests/framework/core/util/tcontext"
 )
@@ -75,6 +76,10 @@ type Topology struct {
 
 	// stacks contains compose-backed components addressable by service name.
 	stacks map[string]*ComposeStack
+
+	// logWriter, when non-nil, receives every component's stdout/stderr for the block's
+	// whole lifetime. Nil in a default run — the suite decides whether logs are captured.
+	logWriter *logcapture.Writer
 }
 
 // ServiceControl resolves a compose service or component to its controlling stack.
@@ -159,9 +164,11 @@ func (t *Topology) URL(component, endpoint string) (string, error) {
 	return inst.URL(endpoint)
 }
 
-// BootBlock starts the block's storage and components in dependency order.
+// BootBlock starts the block's storage and components in dependency order. logWriter,
+// when non-nil, receives every launched component's stdout/stderr for the block's whole
+// lifetime, into one combined file.
 func BootBlock(
-	ctx context.Context, block *topology.ResolvedBlock, repoRoot string,
+	ctx context.Context, block *topology.ResolvedBlock, repoRoot string, logWriter *logcapture.Writer,
 ) (*Topology, error) {
 	if block == nil {
 		return nil, fmt.Errorf("runtime: block is required")
@@ -169,7 +176,7 @@ func BootBlock(
 	if ctx == nil {
 		return nil, fmt.Errorf("runtime: context is required")
 	}
-	t := &Topology{Block: block, Instances: components.NewSet()}
+	t := &Topology{Block: block, Instances: components.NewSet(), logWriter: logWriter}
 
 	if blockNeedsNetwork(block) {
 		nw, err := NewNetwork(ctx, block.Name)
@@ -283,10 +290,11 @@ func (t *Topology) startComponent(
 	}
 
 	opts := Options{
-		Network:  t.network,
-		RepoRoot: repoRoot,
-		Env:      env,
-		Replicas: rc.Replicas,
+		Network:   t.network,
+		RepoRoot:  repoRoot,
+		Env:       env,
+		Replicas:  rc.Replicas,
+		LogWriter: t.logWriter,
 	}
 
 	if def.IsCompose() {
