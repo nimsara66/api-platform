@@ -93,7 +93,7 @@ jobs:
         env:
           IT_COVERAGE_OUT: ${{ github.workspace }}/tests/framework/suites/it/coverage-out
           IT_LOG_OUT: ${{ github.workspace }}/tests/framework/suites/it/logs-out
-        run: go test ./suites/it -count=1 -timeout=60m -coverage -logs
+        run: go test -v ./suites/it -count=1 -timeout=60m -coverage -logs
 
       # Rerunnable post-step: consumes whatever the run harvested, so a failed suite
       # still reports what it covered. The script itself fails when no statement executed

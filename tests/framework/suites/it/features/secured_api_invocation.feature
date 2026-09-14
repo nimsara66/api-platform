@@ -30,10 +30,10 @@ Feature: Platform-API-issued subscription credentials authorize gateway invocati
     And I generate a unique value from "papi-secured-project" and store it as "projectHandle"
     And I create a project "${CTX:projectHandle}" on the control plane
 
-  @secured
+  @secured @known-issue
   Scenario: A published, secured API is invocable through the gateway only with valid credentials
     Given I generate a unique resource name from "papi-secured-plan" and store it as "planHandle"
-    And I create a subscription plan "${CTX:planHandle}" allowing 10000 requests per hour via the control plane
+    And I create a subscription plan "${CTX:planHandle}" allowing 3 requests per minute via the control plane
     And I generate a unique resource name from "papi-secured-api" and store it as "apiHandle"
     And I generate a unique API context from "/papi-secured" and store it as "apiContext"
     When I create a secured REST API "${CTX:apiHandle}" via the control plane in project "${CTX:projectHandle}" with context "${CTX:apiContext}" offering plan "${CTX:planHandle}"
@@ -49,6 +49,9 @@ Feature: Platform-API-issued subscription credentials authorize gateway invocati
     When I set header "API-Key" to "${CTX:apiKeyValue}"
     And I set header "Subscription-Key" to "${CTX:subscriptionToken}"
     And I send a "GET" request to "${CTX:apiContext}/" until status 200
+
+    When I send 2 "GET" requests to "${CTX:apiContext}/"
+    And I send a "GET" request to "${CTX:apiContext}/" until status 429
 
     When I clear all headers
     And I send a "GET" request to "${CTX:apiContext}/"

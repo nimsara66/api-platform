@@ -103,9 +103,6 @@ Feature: Policy engine admin API
     When I delete the API "${CTX:apiName}"
     Then the response should be successful
 
-    # The policy engine's own route_metadata rebuild after a deletion has been measured taking
-    # longer than the generic dump-consistency wait's ceiling, so this polls with its own,
-    # longer-patience timeout rather than a fixed sleep.
     Then I wait for the config dump to stop containing a route with base path "${CTX:apiContext}/${CTX:apiVersion}"
 
   Scenario: Config dump shows a policy's parameters

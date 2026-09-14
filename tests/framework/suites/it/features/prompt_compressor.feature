@@ -25,6 +25,24 @@ Feature: Prompt compressor policy
     Given the gateway services are running
     And I authenticate using basic auth as "admin"
 
+  Scenario: Deploy API with prompt-compressor policy successfully
+    Given I generate a unique value from "pc-deploy" and store it as "apiName"
+    And I generate a unique API version from "pc-deploy" and store it as "apiVersion"
+    And I generate a unique API context from "/pc-deploy" and store it as "apiContext"
+    When I create API from "resources/templates/rest-api.yaml" with values:
+      | apiVersion             | gateway.api-platform.wso2.com/v1                                                                                                       |
+      | name                   | ${CTX:apiName}                                                                                                                          |
+      | spec.displayName       | ${CTX:apiName}                                                                                                                          |
+      | spec.version           | ${CTX:apiVersion}                                                                                                                       |
+      | spec.context           | ${CTX:apiContext}/$version                                                                                                              |
+      | spec.upstream.main.url | http://testbench:3002                                                                                                                   |
+      | spec.operations        | [{"method":"POST","path":"/chat","policies":[{"name":"prompt-compressor","version":"v0","params":{"jsonPath":"$.messages[0].content","rules":[{"upperTokenLimit":-1,"type":"ratio","value":0.50}]}}]},{"method":"GET","path":"/health"}] |
+    Then the response should be successful
+    And I send a "GET" request to "${CTX:apiContext}/${CTX:apiVersion}/health" until status 200
+
+    When I delete the API "${CTX:apiName}"
+    Then the response should be successful
+
   Scenario: Deterministic compression produces exact expected output
     Given I generate a unique value from "pc-deterministic" and store it as "apiName"
     And I generate a unique API version from "pc-deterministic" and store it as "apiVersion"
@@ -544,6 +562,29 @@ Feature: Prompt compressor policy
       {invalid json}
       """
     Then the JSON response field "data" should be "{invalid json}"
+
+    When I delete the API "${CTX:apiName}"
+    Then the response should be successful
+
+  Scenario: Verify policy config dump shows prompt-compressor for deployed route
+    Given I generate a unique value from "pc-config-dump" and store it as "apiName"
+    And I generate a unique API version from "pc-config-dump" and store it as "apiVersion"
+    And I generate a unique API context from "/pc-config-dump" and store it as "apiContext"
+    When I create API from "resources/templates/rest-api.yaml" with values:
+      | apiVersion             | gateway.api-platform.wso2.com/v1                                                                                                              |
+      | name                   | ${CTX:apiName}                                                                                                                                 |
+      | spec.displayName       | ${CTX:apiName}                                                                                                                                 |
+      | spec.version           | ${CTX:apiVersion}                                                                                                                              |
+      | spec.context           | ${CTX:apiContext}/$version                                                                                                                     |
+      | spec.upstream.main.url | http://testbench:3002                                                                                                                          |
+      | spec.operations        | [{"method":"POST","path":"/chat","policies":[{"name":"prompt-compressor","version":"v0","params":{"jsonPath":"$.messages[0].content","rules":[{"upperTokenLimit":-1,"type":"ratio","value":0.50}]}}]},{"method":"GET","path":"/health"}] |
+    Then the response should be successful
+    And I send a "GET" request to "${CTX:apiContext}/${CTX:apiVersion}/health" until status 200
+
+    When I send a "GET" request to the "policy-engine" service at "/config_dump"
+    Then the response status code should be 200
+    And the config dump should contain route with base path "${CTX:apiContext}/${CTX:apiVersion}"
+    And the config dump should contain policy "prompt-compressor" for route "${CTX:apiContext}/${CTX:apiVersion}/chat"
 
     When I delete the API "${CTX:apiName}"
     Then the response should be successful

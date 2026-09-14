@@ -55,7 +55,15 @@ const EnvComposeNetwork = "PG_NETWORK"
 const (
 	EnvComposeCPULimit      = "APIP_CPU_LIMIT"
 	EnvComposeMemoryLimitMB = "APIP_MEMORY_LIMIT_MB"
+	EnvInstanceSuffix       = "INSTANCE"
 )
+
+func instanceSuffix(ordinal, replicas int) string {
+	if replicas <= 1 {
+		return ""
+	}
+	return fmt.Sprintf("-%d", ordinal+1)
+}
 
 // ComposeStack is a running compose-backed component.
 type ComposeStack struct {
@@ -65,6 +73,7 @@ type ComposeStack struct {
 	def      *components.Definition
 	stageDir string
 	block    string
+	suffix   string
 
 	// stopLogProducers stops each service's attached log producer, populated only when
 	// the block is capturing container output.
@@ -84,9 +93,7 @@ func LaunchCompose(
 	if opts.Network == nil {
 		return nil, fmt.Errorf("runtime: %s needs a block label for its compose stack", def)
 	}
-	if opts.Replicas > 1 {
-		return nil, fmt.Errorf("runtime: compose component %s does not support replicas", def)
-	}
+	suffix := instanceSuffix(opts.Ordinal, opts.Replicas)
 	// Values substituted into the staged compose file.
 	substitutions := map[string]string{EnvComposeNetwork: opts.Network.Name()}
 	for k, v := range spec.Env {
@@ -95,6 +102,7 @@ func LaunchCompose(
 	for k, v := range opts.Env {
 		substitutions[k] = v
 	}
+	substitutions[EnvInstanceSuffix] = suffix
 
 	stageDir, err := stageComposeFiles(def, spec, opts.RepoRoot, substitutions)
 	if err != nil {
@@ -107,16 +115,23 @@ func LaunchCompose(
 		}
 	}()
 
-	composePath := filepath.Join(stageDir, spec.StagingName())
+	composePaths := make([]string, 0, 1+len(spec.ComposeOverrideFiles))
+	for _, name := range spec.StagingNames() {
+		path := filepath.Join(stageDir, name)
+		if err := applyInstanceSuffix(path, suffix); err != nil {
+			return nil, err
+		}
+		composePaths = append(composePaths, path)
+	}
 
 	// Keep stack identifiers unique per block.
-	identifier, err := uniqueStackID(opts.Network.Block(), def.Name)
+	identifier, err := uniqueStackID(opts.Network.Block(), def.Name+suffix)
 	if err != nil {
 		return nil, err
 	}
 
 	created, err := tccompose.NewDockerComposeWith(
-		tccompose.WithStackFiles(composePath),
+		tccompose.WithStackFiles(composePaths...),
 		tccompose.StackIdentifier(identifier),
 	)
 	if err != nil {
@@ -159,10 +174,10 @@ func LaunchCompose(
 			return nil, fmt.Errorf("runtime: %s health targets service %q, which is not in %v",
 				def, target, spec.Services)
 		}
-		stack = stack.WaitForService(target, strategy)
+		stack = stack.WaitForService(target+suffix, strategy)
 	}
 
-	result := &ComposeStack{stack: stack, def: def, stageDir: stageDir, block: opts.Network.Block()}
+	result := &ComposeStack{stack: stack, def: def, stageDir: stageDir, block: opts.Network.Block(), suffix: suffix}
 
 	if err := stack.Up(ctx, tccompose.Wait(true)); err != nil {
 		cleanupErr := result.Stop(context.Background())
@@ -178,7 +193,11 @@ func LaunchCompose(
 		}
 	}
 
-	inst, err := composeInstance(ctx, def, spec, stack)
+	replicas := opts.Replicas
+	if replicas <= 0 {
+		replicas = 1
+	}
+	inst, err := composeInstance(ctx, def, spec, stack, opts.Ordinal, replicas, suffix)
 	if err != nil {
 		cleanupErr := result.Stop(context.Background())
 		return nil, errors.Join(err, cleanupErr)
@@ -268,13 +287,14 @@ func composeWaitStrategy(def *components.Definition) (wait.Strategy, error) {
 // composeInstance reads the mapped ports for each published endpoint.
 func composeInstance(
 	ctx context.Context, def *components.Definition, spec *components.ComposeSpec, stack tccompose.ComposeStack,
+	ordinal, replicas int, suffix string,
 ) (*components.Instance, error) {
 	containers := map[string]*testcontainers.DockerContainer{}
 	serviceOf := func(e components.Endpoint) string {
 		if e.Service != "" {
-			return e.Service
+			return e.Service + suffix
 		}
-		return spec.PrimaryService
+		return spec.PrimaryService + suffix
 	}
 
 	getContainer := func(svc string) (*testcontainers.DockerContainer, error) {
@@ -289,7 +309,7 @@ func composeInstance(
 		return c, nil
 	}
 
-	primary, err := getContainer(spec.PrimaryService)
+	primary, err := getContainer(spec.PrimaryService + suffix)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +333,17 @@ func composeInstance(
 		mapped[e.Port] = int(p.Num())
 	}
 
-	return components.NewInstance(def, 0, 1, host, mapped)
+	return components.NewInstance(def, ordinal, replicas, host, mapped)
+}
+
+func applyInstanceSuffix(path, suffix string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("runtime: reading staged compose file %q: %w", path, err)
+	}
+	text := replaceDefaulted(string(content), EnvInstanceSuffix, suffix)
+	text = strings.ReplaceAll(text, "+EnvInstanceSuffix+", suffix)
+	return os.WriteFile(path, []byte(text), 0o644)
 }
 
 // stageComposeFiles materializes the compose file and its bind mounts in one directory.
@@ -372,6 +402,15 @@ func stageComposeFiles(
 	// Resolve framework variables before compose parses the staged file.
 	if err := interpolateStagedFile(filepath.Join(dir, spec.StagingName()), substitutions); err != nil {
 		return "", err
+	}
+	for i, source := range spec.ComposeOverrideFiles {
+		name := spec.StagingNames()[i+1]
+		if err := copyIn(name, source); err != nil {
+			return "", err
+		}
+		if err := interpolateStagedFile(filepath.Join(dir, name), substitutions); err != nil {
+			return "", err
+		}
 	}
 	for name, source := range spec.StagedFiles {
 		if err := copyIn(name, source); err != nil {
@@ -674,6 +713,7 @@ func (c *ComposeStack) RefreshPorts(ctx context.Context) error {
 		if e.Service != "" {
 			service = e.Service
 		}
+		service += c.suffix
 		container, err := c.stack.ServiceContainer(ctx, service)
 		if err != nil {
 			return fmt.Errorf("runtime: locating service %q while refreshing ports: %w", service, err)
@@ -706,7 +746,11 @@ func (c *ComposeStack) Services() []string {
 	if c == nil || c.def == nil || c.def.Compose == nil {
 		return nil
 	}
-	return append([]string(nil), c.def.Compose.Services...)
+	out := make([]string, len(c.def.Compose.Services))
+	for i, service := range c.def.Compose.Services {
+		out[i] = service + c.suffix
+	}
+	return out
 }
 
 // PrimaryService is the service whose ports back the component's endpoints.
@@ -714,7 +758,7 @@ func (c *ComposeStack) PrimaryService() string {
 	if c == nil || c.def == nil || c.def.Compose == nil {
 		return ""
 	}
-	return c.def.Compose.PrimaryService
+	return c.def.Compose.PrimaryService + c.suffix
 }
 
 // CoverageServices lists the services whose coverage artifacts a coverage run collects.
@@ -722,7 +766,11 @@ func (c *ComposeStack) CoverageServices() []components.CoverageService {
 	if c == nil || c.def == nil || c.def.Compose == nil {
 		return nil
 	}
-	return append([]components.CoverageService(nil), c.def.Compose.CoverageServices...)
+	out := make([]components.CoverageService, len(c.def.Compose.CoverageServices))
+	for i, service := range c.def.Compose.CoverageServices {
+		out[i] = components.CoverageService{Name: service.Name + c.suffix, Types: service.Types}
+	}
+	return out
 }
 
 // ServiceContainerID resolves a running service's container ID.

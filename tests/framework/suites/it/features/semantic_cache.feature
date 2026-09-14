@@ -78,10 +78,8 @@ Feature: Semantic cache policy
     When I delete the API "${CTX:apiName}"
     Then the response should be successful
 
-  # The mock embedding lowercases and word-splits before hashing, so a case-only variant
-  # produces a cosine similarity of ~1.0 against the original - a genuine test of semantic
-  # (not exact-string) matching, confirmed via the embeddings service's own /debug/similarity
-  # endpoint before writing this scenario.
+  # The embedding mock normalizes case before comparing vectors, so this case exercises
+  # semantic matching rather than exact-string matching.
   Scenario: A semantically similar request (case variant) returns the cached response
     Given I generate a unique value from "sc-similar" and store it as "apiName"
     And I generate a unique API version from "sc-similar" and store it as "apiVersion"

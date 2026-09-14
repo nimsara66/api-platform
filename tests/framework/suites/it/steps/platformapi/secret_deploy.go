@@ -89,6 +89,12 @@ func RegisterDeploy(sc *godog.ScenarioContext, s *Steps) {
 		s.deployArtifactAndStore)
 	sc.Step(`^I undeploy the "RestApi" "([^"]*)" deployment "([^"]*)" from the gateway via the control plane$`,
 		s.undeployRestAPI)
+	sc.Step(`^I deploy the "([^"]*)" "([^"]*)" to the (first|second) gateway via the control plane$`,
+		s.deployArtifactAt)
+	sc.Step(`^I deploy the "([^"]*)" "([^"]*)" to the (first|second) gateway via the control plane and store the deployment id as "([^"]*)"$`,
+		s.deployArtifactAndStoreAt)
+	sc.Step(`^I undeploy the "RestApi" "([^"]*)" deployment "([^"]*)" from the (first|second) gateway via the control plane$`,
+		s.undeployRestAPIAt)
 	sc.Step(`^I create a subscription plan "([^"]*)" allowing (\d+) requests per (minute|hour|day|month) via the control plane$`,
 		s.createSubscriptionPlan)
 	sc.Step(`^I create a secured REST API "([^"]*)" via the control plane in project "([^"]*)" with context "([^"]*)" offering plan "([^"]*)"$`,
@@ -526,6 +532,49 @@ func (s *Steps) gatewayUUID(ctx context.Context, base, bearer string) (string, e
 	return "", fmt.Errorf("control plane's registered gateway has no id or uuid: %s", resp.Text())
 }
 
+func gatewayHandleAt(word string) (string, error) {
+	switch word {
+	case "first":
+		return "it-gateway-1", nil
+	case "second":
+		return "it-gateway-2", nil
+	default:
+		return "", fmt.Errorf("unknown gateway ordinal %q", word)
+	}
+}
+
+func (s *Steps) gatewayUUIDAt(ctx context.Context, base, bearer, word string) (string, error) {
+	handle, err := gatewayHandleAt(word)
+	if err != nil {
+		return "", err
+	}
+	resp, err := s.get(ctx, base, bearer, "/gateways")
+	if err != nil {
+		return "", err
+	}
+	if !resp.Succeeded() {
+		return "", fmt.Errorf("listing control-plane gateways: %s", resp.Describe())
+	}
+	var doc struct {
+		List []struct {
+			ID   string `json:"id"`
+			UUID string `json:"uuid"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(resp.Body, &doc); err != nil {
+		return "", err
+	}
+	for _, gateway := range doc.List {
+		if gateway.ID == handle {
+			if gateway.UUID != "" {
+				return gateway.UUID, nil
+			}
+			return gateway.ID, nil
+		}
+	}
+	return "", fmt.Errorf("control plane has no registered gateway with handle %q", handle)
+}
+
 // deployArtifact deploys an already-created artifact to the block's gateway, discarding the
 // deployment id. A REST API must first be attached to the gateway via a separate call; every
 // other kind deploys directly.
@@ -545,6 +594,18 @@ func (s *Steps) deployArtifactAndStore(ctx context.Context, kind, handle, storeA
 }
 
 func (s *Steps) deployArtifactID(ctx context.Context, kind, handle string) (string, error) {
+	base, bearer, err := s.authed(ctx)
+	if err != nil {
+		return "", err
+	}
+	gatewayID, err := s.gatewayUUID(ctx, base, bearer)
+	if err != nil {
+		return "", err
+	}
+	return s.deployArtifactToGateway(ctx, kind, handle, base, bearer, gatewayID)
+}
+
+func (s *Steps) deployArtifactToGateway(ctx context.Context, kind, handle, base, bearer, gatewayID string) (string, error) {
 	resolvedKind, err := stepscommon.Expand(ctx, kind)
 	if err != nil {
 		return "", err
@@ -556,14 +617,6 @@ func (s *Steps) deployArtifactID(ctx context.Context, kind, handle string) (stri
 	collection, ok := deployPaths[resolvedKind]
 	if !ok {
 		return "", fmt.Errorf("unknown artifact kind %q for control-plane deployment", resolvedKind)
-	}
-	base, bearer, err := s.authed(ctx)
-	if err != nil {
-		return "", err
-	}
-	gatewayID, err := s.gatewayUUID(ctx, base, bearer)
-	if err != nil {
-		return "", err
 	}
 
 	if resolvedKind == "RestApi" {
@@ -600,16 +653,37 @@ func (s *Steps) deployArtifactID(ctx context.Context, kind, handle string) (stri
 	return deployed.DeploymentID, nil
 }
 
+func (s *Steps) deployArtifactAt(ctx context.Context, kind, handle, word string) error {
+	base, bearer, err := s.authed(ctx)
+	if err != nil {
+		return err
+	}
+	gatewayID, err := s.gatewayUUIDAt(ctx, base, bearer, word)
+	if err != nil {
+		return err
+	}
+	_, err = s.deployArtifactToGateway(ctx, kind, handle, base, bearer, gatewayID)
+	return err
+}
+
+func (s *Steps) deployArtifactAndStoreAt(ctx context.Context, kind, handle, word, storeAs string) error {
+	base, bearer, err := s.authed(ctx)
+	if err != nil {
+		return err
+	}
+	gatewayID, err := s.gatewayUUIDAt(ctx, base, bearer, word)
+	if err != nil {
+		return err
+	}
+	id, err := s.deployArtifactToGateway(ctx, kind, handle, base, bearer, gatewayID)
+	if err != nil {
+		return err
+	}
+	return tcontext.Set(ctx, storeAs, id)
+}
+
 // undeployRestAPI undeploys a REST API's deployment from the block's gateway.
 func (s *Steps) undeployRestAPI(ctx context.Context, handle, deploymentID string) error {
-	resolvedHandle, err := stepscommon.Expand(ctx, handle)
-	if err != nil {
-		return err
-	}
-	resolvedDeploymentID, err := stepscommon.Expand(ctx, deploymentID)
-	if err != nil {
-		return err
-	}
 	base, bearer, err := s.authed(ctx)
 	if err != nil {
 		return err
@@ -619,6 +693,30 @@ func (s *Steps) undeployRestAPI(ctx context.Context, handle, deploymentID string
 		return err
 	}
 
+	return s.undeployRestAPIFromGateway(ctx, handle, deploymentID, base, bearer, gatewayID)
+}
+
+func (s *Steps) undeployRestAPIAt(ctx context.Context, handle, deploymentID, word string) error {
+	base, bearer, err := s.authed(ctx)
+	if err != nil {
+		return err
+	}
+	gatewayID, err := s.gatewayUUIDAt(ctx, base, bearer, word)
+	if err != nil {
+		return err
+	}
+	return s.undeployRestAPIFromGateway(ctx, handle, deploymentID, base, bearer, gatewayID)
+}
+
+func (s *Steps) undeployRestAPIFromGateway(ctx context.Context, handle, deploymentID, base, bearer, gatewayID string) error {
+	resolvedHandle, err := stepscommon.Expand(ctx, handle)
+	if err != nil {
+		return err
+	}
+	resolvedDeploymentID, err := stepscommon.Expand(ctx, deploymentID)
+	if err != nil {
+		return err
+	}
 	resp, err := s.client.Do(ctx, httpx.Request{
 		Method:  http.MethodPost,
 		URL:     base + apiBase + "/rest-apis/" + resolvedHandle + "/deployments/" + resolvedDeploymentID + "/undeploy?gatewayId=" + gatewayID,

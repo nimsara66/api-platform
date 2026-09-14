@@ -29,6 +29,10 @@ type ComposeSpec struct {
 	// internals.
 	ComposeFile string
 
+	// ComposeOverrideFiles are repo-relative Compose files merged after ComposeFile.
+	// They contain only component-specific overrides.
+	ComposeOverrideFiles []string
+
 	// StagedFiles maps repository-relative source files to their names beside the
 	// staged Compose file.
 	StagedFiles map[string]string
@@ -57,8 +61,10 @@ type ComposeSpec struct {
 
 // CoverageService identifies a service that writes coverage artifacts.
 type CoverageService struct {
-	Name  string
-	Types []string
+	Name string
+	// OutputName optionally identifies the coverage output directory. Empty uses Name.
+	OutputName string
+	Types      []string
 }
 
 // IsCompose reports whether this component is backed by a compose stack rather than a
@@ -149,17 +155,32 @@ func (c *ComposeSpec) StagingName() string {
 	return c.ComposeFile
 }
 
+// StagingNames returns the staged base Compose file followed by its overrides.
+func (c *ComposeSpec) StagingNames() []string {
+	names := make([]string, 0, 1+len(c.ComposeOverrideFiles))
+	names = append(names, c.StagingName())
+	for _, file := range c.ComposeOverrideFiles {
+		if i := strings.LastIndex(file, "/"); i >= 0 {
+			names = append(names, file[i+1:])
+		} else {
+			names = append(names, file)
+		}
+	}
+	return names
+}
+
 // WithGenerated returns a copy of the spec with generated files added.
 func (c *ComposeSpec) WithGenerated(files map[string][]byte) *ComposeSpec {
 	out := &ComposeSpec{
-		ComposeFile:      c.ComposeFile,
-		PrimaryService:   c.PrimaryService,
-		Services:         append([]string(nil), c.Services...),
-		StagedFiles:      make(map[string]string, len(c.StagedFiles)),
-		GeneratedFiles:   make(map[string][]byte, len(files)+len(c.GeneratedFiles)),
-		Env:              make(map[string]string, len(c.Env)),
-		CoverageServices: append([]CoverageService(nil), c.CoverageServices...),
-		BootAttempts:     c.BootAttempts,
+		ComposeFile:          c.ComposeFile,
+		ComposeOverrideFiles: append([]string(nil), c.ComposeOverrideFiles...),
+		PrimaryService:       c.PrimaryService,
+		Services:             append([]string(nil), c.Services...),
+		StagedFiles:          make(map[string]string, len(c.StagedFiles)),
+		GeneratedFiles:       make(map[string][]byte, len(files)+len(c.GeneratedFiles)),
+		Env:                  make(map[string]string, len(c.Env)),
+		CoverageServices:     append([]CoverageService(nil), c.CoverageServices...),
+		BootAttempts:         c.BootAttempts,
 	}
 	for k, v := range c.StagedFiles {
 		out.StagedFiles[k] = v

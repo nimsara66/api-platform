@@ -46,7 +46,7 @@ func Redis() *components.Definition {
 		Alias: "redis",
 		Image: components.ImageRef{Ref: "redis/redis-stack-server:latest"},
 		Env:   map[string]string{RedisPasswordEnv: RedisPassword},
-		Provisions: func(context.Context, *components.Instance) (map[string]string, error) {
+		Provisions: func(context.Context, *components.Instance, string) (map[string]string, error) {
 			return map[string]string{RedisPasswordEnv: RedisPassword}, nil
 		},
 		Endpoints: []components.Endpoint{

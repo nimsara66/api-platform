@@ -40,3 +40,32 @@ component_management:
       name: cli
       paths:
         - cli/**
+    - component_id: ai-workspace-bff
+      name: ai-workspace-bff
+      paths:
+        - portals/ai-workspace/bff/**
+    - component_id: ai-workspace-ui
+      name: ai-workspace-ui
+      paths:
+        - portals/ai-workspace/src/**
+    - component_id: api-portal-server
+      name: api-portal-server
+      paths:
+        - portals/api-portal/src/*.js
+        - portals/api-portal/src/config/**
+        - portals/api-portal/src/controllers/**
+        - portals/api-portal/src/dao/**
+        - portals/api-portal/src/db/**
+        - portals/api-portal/src/defaultContent/**
+        - portals/api-portal/src/dto/**
+        - portals/api-portal/src/helpers/**
+        - portals/api-portal/src/middlewares/**
+        - portals/api-portal/src/pages/**
+        - portals/api-portal/src/routes/**
+        - portals/api-portal/src/services/**
+        - portals/api-portal/src/styles/**
+        - portals/api-portal/src/utils/**
+    - component_id: api-portal-ui
+      name: api-portal-ui
+      paths:
+        - portals/api-portal/src/scripts/**

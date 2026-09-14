@@ -438,12 +438,12 @@ func TestBuildPlanErrors(t *testing.T) {
 }
 
 func TestRuntimeInputValidation(t *testing.T) {
-	t.Run("compose replicas are rejected before Docker access", func(t *testing.T) {
+	t.Run("compose replicas use the normal validation path before Docker access", func(t *testing.T) {
 		def := &components.Definition{Name: "stack", Compose: &components.ComposeSpec{}}
 		_, err := LaunchCompose(context.Background(), def, &components.ComposeSpec{}, Options{
 			Network: &Network{name: "test", block: "block"}, Replicas: 2,
 		})
-		require.ErrorContains(t, err, "does not support replicas")
+		require.ErrorContains(t, err, "staged path")
 	})
 
 	t.Run("staged paths cannot escape their directory", func(t *testing.T) {

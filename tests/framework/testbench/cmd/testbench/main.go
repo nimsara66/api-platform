@@ -39,7 +39,9 @@ import (
 	"github.com/wso2/api-platform/tests/framework/testbench/services/interceptor"
 	"github.com/wso2/api-platform/tests/framework/testbench/services/jwks"
 	"github.com/wso2/api-platform/tests/framework/testbench/services/mcp"
+	"github.com/wso2/api-platform/tests/framework/testbench/services/oauth2"
 	"github.com/wso2/api-platform/tests/framework/testbench/services/openai"
+	"github.com/wso2/api-platform/tests/framework/testbench/services/webhook"
 )
 
 func main() {
@@ -90,6 +92,8 @@ func services() ([]testbench.Service, error) {
 		contentsafety.New(),
 		analytics.New(),
 		capture.New(),
+		oauth2.New(),
+		webhook.New(),
 	}, nil
 }
 
