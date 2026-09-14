@@ -84,6 +84,9 @@ type ResolvedComponent struct {
 	// Overlay is the block-supplied configuration overlay, if any.
 	Overlay string
 
+	// StagedFiles are block-scoped component resource source overrides.
+	StagedFiles map[string]string
+
 	// Replicas is the instance count.
 	Replicas int
 
@@ -486,6 +489,13 @@ func resolveBlock(
 			errs.add(err)
 			continue
 		}
+		if len(c.StagedFiles) > 0 {
+			def, err = def.WithStagedFiles(c.StagedFiles)
+			if err != nil {
+				errs.addf("block %q: component %q: %v", name, c.Name, err)
+				continue
+			}
+		}
 
 		replicas := c.EffectiveReplicas()
 		if replicas > 1 && def.IsExternal() {
@@ -501,7 +511,8 @@ func resolveBlock(
 
 		_, dbVariant, _ := componentVariant(c, v, defaults)
 		rb.Components = append(rb.Components, ResolvedComponent{
-			Def: def, Version: version, DB: dbType, Image: dbVariant.Image, Overlay: c.Overlay, Replicas: replicas, Wiring: wiring,
+			Def: def, Version: version, DB: dbType, Image: dbVariant.Image, Overlay: c.Overlay,
+			StagedFiles: maps.Clone(c.StagedFiles), Replicas: replicas, Wiring: wiring,
 			DependsOn: append([]string(nil), c.DependsOn...),
 		})
 	}

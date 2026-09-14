@@ -25,7 +25,7 @@ Feature: Configuration dump endpoint
     Given the gateway services are running
     And I authenticate using basic auth as "admin"
 
-  Scenario: Config dump has the expected top-level and statistics structure
+  Scenario: Config dump starts with no deployed APIs
     When I send a "GET" request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
@@ -36,6 +36,7 @@ Feature: Configuration dump endpoint
     And the JSON response should have field "certificates"
     And the JSON response should have field "statistics"
     And the JSON response should have field "statistics.totalApis"
+    And the JSON response field "statistics.totalApis" should be 0
     And the JSON response should have field "statistics.totalPolicies"
     And the JSON response should have field "statistics.totalCertificates"
 

@@ -24,11 +24,8 @@ Feature: Rejected control-plane pushes are retried on gateway-controller reconne
   So that a transient rejection (e.g. a not-yet-created project) does not permanently lose the
   artifact
 
-  # Restarts gateway-controller, so this lives in its own runner rather than alongside
-  # dp-to-cp's other scenarios in platform-api-gateway - those run concurrently with sibling
-  # runners that expect gateway-controller continuously reachable, and a restart racing their
-  # polling windows caused an intermittent connection-refused failure unrelated to this
-  # scenario's own behavior.
+  # This scenario restarts gateway-controller while a control-plane push is pending.
+  # Keep it isolated so the restart cannot interrupt unrelated gateway requests.
   Background:
     Given the gateway services are running
     And I authenticate using basic auth as "admin"

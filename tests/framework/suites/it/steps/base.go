@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/textproto"
 	"regexp"
 	"strconv"
@@ -35,9 +36,24 @@ import (
 	"github.com/wso2/api-platform/tests/framework/core/util/httpx"
 	"github.com/wso2/api-platform/tests/framework/core/util/retry"
 	"github.com/wso2/api-platform/tests/framework/core/util/tcontext"
+	"github.com/wso2/api-platform/tests/framework/suites/it/steps/apiportal"
 	stepscommon "github.com/wso2/api-platform/tests/framework/suites/it/steps/common"
 	"github.com/wso2/api-platform/tests/framework/suites/it/steps/platformapi"
+	"github.com/wso2/api-platform/tests/framework/suites/it/steps/platformgateway"
 )
+
+const elapsedTolerance = 0.05
+
+func parseSeconds(value string) (float64, error) {
+	seconds, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return 0, fmt.Errorf("parsing expected seconds %q: %w", value, err)
+	}
+	if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds < 0 {
+		return 0, fmt.Errorf("expected seconds must be finite and non-negative, got %q", value)
+	}
+	return seconds, nil
+}
 
 // Base holds shared state and request steps for one integration-test block.
 type Base struct {
@@ -46,10 +62,39 @@ type Base struct {
 	featureRoot string
 }
 
+// FeatureRoot returns the root directory containing suite feature assets.
+func (b *Base) FeatureRoot() string { return b.featureRoot }
+
+// GatewayURL resolves a path against the configured gateway.
+func (b *Base) GatewayURL(path string) (string, error) { return b.gatewayURL(path) }
+
+// GatewayURLAt resolves a path against a gateway selected by ordinal.
+func (b *Base) GatewayURLAt(ordinalWord, path string) (string, error) {
+	return b.gatewayURLAt(ordinalWord, path)
+}
+
+// ScenarioHeaders returns the headers accumulated by the current scenario.
+func (b *Base) ScenarioHeaders(ctx context.Context) map[string]string { return b.scenarioHeaders(ctx) }
+
+// InvokeWith sends a request through the suite HTTP funnel.
+func (b *Base) InvokeWith(ctx context.Context, method, path string, headers map[string]string, body []byte) error {
+	return b.invokeWith(ctx, method, path, headers, body)
+}
+
+// RequestHost returns the host override accumulated by the current scenario.
+func (b *Base) RequestHost(ctx context.Context) string { return b.requestHost(ctx) }
+
+// ResetRequest clears the current scenario request state.
+func (b *Base) ResetRequest(ctx context.Context) error { return b.resetRequest(ctx) }
+
+// SendUntilHeader retries a request until a response header has the expected value.
+func (b *Base) SendUntilHeader(ctx context.Context, method, path, name, want string) error {
+	return b.sendUntilHeader(ctx, method, path, name, want)
+}
+
 // Suite is the integration suite's step-binding entry point.
 type Suite struct {
 	*Base
-	gateway *Gateway
 }
 
 // New creates the step bindings for one resolved block.
@@ -70,14 +115,15 @@ func New(topo *frameworkruntime.Topology, featureRoot ...string) *Suite {
 		featureRoot: root,
 	}
 	stepscommon.ConfigureExpansion()
-	return &Suite{Base: base, gateway: &Gateway{Base: base}}
+	return &Suite{Base: base}
 }
 
 // Register binds shared and product-specific Gherkin steps.
 func (s *Suite) Register(sc *godog.ScenarioContext) {
 	s.registerBaseSteps(sc)
-	s.gateway.register(sc)
+	platformgateway.Register(sc, s.Base, s.topo, s.funnel)
 	platformapi.Register(sc, s.topo, s.funnel.Client())
+	apiportal.Register(sc, s.topo, s.funnel.Client())
 }
 
 // Request-shaping state is stored in the scenario context.
@@ -101,7 +147,6 @@ func scenarioLabel(ctx context.Context) string {
 }
 
 func (b *Base) registerBaseSteps(sc *godog.ScenarioContext) {
-	b.registerRawHTTPSteps(sc)
 	sc.Step(`^the response status code should be (\d+)$`, b.statusCodeIs)
 	sc.Step(`^the response status should be (\d+)$`, b.statusCodeIs)
 	sc.Step(`^the response should be successful$`, b.responseSuccessful)
@@ -116,6 +161,7 @@ func (b *Base) registerBaseSteps(sc *godog.ScenarioContext) {
 	sc.Step(`^the response should contain metric "([^"]*)"$`, b.responseContainsMetric)
 	sc.Step(`^the response header "([^"]*)" should be "([^"]*)"$`, b.responseHeaderEquals)
 	sc.Step(`^the response header "([^"]*)" should contain "([^"]*)"$`, b.responseHeaderContains)
+	sc.Step(`^the response header "([^"]*)" should not contain "([^"]*)"$`, b.responseHeaderNotContains)
 	sc.Step(`^the response header "([^"]*)" should match pattern "([^"]*)"$`,
 		b.responseHeaderMatchesPattern)
 	sc.Step(`^the response header "([^"]*)" should (exist|not exist)$`, b.responseHeaderPresence)
@@ -160,6 +206,9 @@ func (b *Base) registerBaseSteps(sc *godog.ScenarioContext) {
 	sc.Step(`^I send (\d+) "([^"]*)" requests to "([^"]*)"$`, b.sendRepeated)
 	sc.Step(`^I send a "([^"]*)" request to "([^"]*)" with body:$`, b.sendRequestWithBody)
 	sc.Step(`^I send a "([^"]*)" request to "([^"]*)" until status (\d+)$`, b.sendUntilStatus)
+	sc.Step(`^I send a "([^"]*)" request to "([^"]*)" until status (\d+) or (\d+)$`, b.sendUntilStatusOneOf)
+	sc.Step(`^I send a "([^"]*)" request to the (first|second) gateway "([^"]*)" until status (\d+)$`,
+		b.sendUntilStatusAt)
 	sc.Step(`^I send a "([^"]*)" request to "([^"]*)" until status (\d+) with body:$`,
 		b.sendUntilStatusWithBody)
 	sc.Step(`^I send a "([^"]*)" request to "([^"]*)" until header "([^"]*)" is "([^"]*)"$`,
@@ -378,6 +427,52 @@ func (b *Base) sendUntilStatusWithBody(
 		},
 		func(r *httpx.Response) bool { return r != nil && r.StatusCode == want },
 		fmt.Sprintf("waiting for %s %s to return %d", strings.ToUpper(method), url, want))
+}
+
+func (b *Base) sendUntilStatusOneOf(ctx context.Context, method, path string, wantA, wantB int) error {
+	resolved, err := stepscommon.Expand(ctx, path)
+	if err != nil {
+		return err
+	}
+	url, err := b.gatewayURL(resolved)
+	if err != nil {
+		return err
+	}
+	headers := b.scenarioHeaders(ctx)
+	return stepscommon.AwaitResponse(ctx, func(ctx context.Context) (*httpx.Response, error) {
+		resp, sendErr := b.funnel.Send(ctx, httpx.Request{
+			Method: strings.ToUpper(method), URL: url, Headers: headers, Host: b.requestHost(ctx),
+		})
+		if sendErr != nil {
+			return nil, retry.Transient(sendErr)
+		}
+		return resp, nil
+	}, func(resp *httpx.Response) bool {
+		return resp != nil && (resp.StatusCode == wantA || resp.StatusCode == wantB)
+	}, fmt.Sprintf("waiting for %s %s to return %d or %d", strings.ToUpper(method), url, wantA, wantB))
+}
+
+func (b *Base) sendUntilStatusAt(ctx context.Context, method, ordinalWord, path string, want int) error {
+	resolved, err := stepscommon.Expand(ctx, path)
+	if err != nil {
+		return err
+	}
+	url, err := b.gatewayURLAt(ordinalWord, resolved)
+	if err != nil {
+		return err
+	}
+	headers := b.scenarioHeaders(ctx)
+	return stepscommon.AwaitResponse(ctx, func(ctx context.Context) (*httpx.Response, error) {
+		resp, sendErr := b.funnel.Send(ctx, httpx.Request{
+			Method: strings.ToUpper(method), URL: url, Headers: headers, Host: b.requestHost(ctx),
+		})
+		if sendErr != nil {
+			return nil, retry.Transient(sendErr)
+		}
+		return resp, nil
+	}, func(resp *httpx.Response) bool {
+		return resp != nil && resp.StatusCode == want
+	}, fmt.Sprintf("waiting for %s %s to return %d", strings.ToUpper(method), url, want))
 }
 
 // sendUntilTimedOut polls a data-plane path until it fails with the wanted status AND its
@@ -813,6 +908,25 @@ func (b *Base) responseHeaderContains(ctx context.Context, name, want string) er
 	return nil
 }
 
+// responseHeaderNotContains asserts that a header does not carry a sensitive or disallowed
+// marker while allowing unrelated response metadata to vary.
+func (b *Base) responseHeaderNotContains(ctx context.Context, name, want string) error {
+	resp, err := httpx.Published(ctx)
+	if err != nil {
+		return err
+	}
+	resolved, err := stepscommon.Expand(ctx, want)
+	if err != nil {
+		return err
+	}
+	got := resp.Headers.Get(name)
+	if strings.Contains(got, resolved) {
+		return fmt.Errorf("expected header %q not to contain %q, got %q (%s)",
+			name, resolved, got, resp.Describe())
+	}
+	return nil
+}
+
 // responseHeaderMatchesPattern asserts a response header against an expanded regular expression.
 func (b *Base) responseHeaderMatchesPattern(ctx context.Context, name, pattern string) error {
 	resp, err := httpx.Published(ctx)
@@ -1105,9 +1219,13 @@ func (b *Base) jsonFieldIs(ctx context.Context, field, want string) error {
 	if !present {
 		return fmt.Errorf("JSON field %q is absent from %s", field, resp.Describe())
 	}
-	if fmt.Sprintf("%v", got) != expected {
+	gotText := fmt.Sprintf("%v", got)
+	if got == nil {
+		gotText = "null"
+	}
+	if gotText != expected {
 		return fmt.Errorf("JSON field %q: expected %q, got %q: %s",
-			field, expected, fmt.Sprintf("%v", got), resp.Describe())
+			field, expected, gotText, resp.Describe())
 	}
 	return nil
 }
@@ -1191,6 +1309,32 @@ func jsonStringField(body []byte, field string) (string, error) {
 // gatewayURL builds a data-plane URL, where deployed APIs are invoked.
 func (b *Base) gatewayURL(path string) (string, error) {
 	base, err := b.topo.URL("platform-gateway", "http")
+	if err != nil {
+		return "", err
+	}
+	if path != "" && !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return base + path, nil
+}
+
+func gatewayOrdinal(word string) (int, error) {
+	switch word {
+	case "first":
+		return 0, nil
+	case "second":
+		return 1, nil
+	default:
+		return 0, fmt.Errorf("unknown gateway ordinal %q", word)
+	}
+}
+
+func (b *Base) gatewayURLAt(ordinalWord, path string) (string, error) {
+	ordinal, err := gatewayOrdinal(ordinalWord)
+	if err != nil {
+		return "", err
+	}
+	base, err := b.topo.URLAt("platform-gateway", ordinal, "http")
 	if err != nil {
 		return "", err
 	}

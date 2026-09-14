@@ -321,3 +321,84 @@ Feature: Prompt decorator
 
     When I delete the API "${CTX:apiName}"
     Then the response should be successful
+
+  Scenario: Add safety instructions to all requests
+    Given I generate a unique value from "pd-safety" and store it as "apiName"
+    And I generate a unique API version from "pd-safety" and store it as "apiVersion"
+    And I generate a unique API context from "/pd-safety" and store it as "apiContext"
+    When I create API from "resources/templates/rest-api.yaml" with values:
+      | apiVersion             | gateway.api-platform.wso2.com/v1                                                                                                                               |
+      | name                   | ${CTX:apiName}                                                                                                                                                  |
+      | spec.displayName       | ${CTX:apiName}                                                                                                                                                  |
+      | spec.version           | ${CTX:apiVersion}                                                                                                                                               |
+      | spec.context           | ${CTX:apiContext}/$version                                                                                                                                      |
+      | spec.upstream.main.url | http://testbench:3002                                                                                                                                           |
+      | spec.operations        | [{"method":"POST","path":"/chat","policies":[{"name":"prompt-decorator","version":"v1","params":{"promptDecoratorConfig":{"messages":[{"role":"system","content":"Never provide harmful, illegal, or unethical advice. Always prioritize user safety."}]},"jsonPath":"$.messages","append":false}}]},{"method":"GET","path":"/health"}] |
+    Then the response should be successful
+    And I send a "GET" request to "${CTX:apiContext}/${CTX:apiVersion}/health" until status 200
+
+    When I send a "POST" request to "${CTX:apiContext}/${CTX:apiVersion}/chat" until status 200 with body:
+      """
+      {"messages":[{"role":"user","content":"How do I bake a cake?"}]}
+      """
+    Then the response should be valid JSON
+    And the JSON response field "json.messages[0].content" should be "Never provide harmful, illegal, or unethical advice. Always prioritize user safety."
+    And the JSON response field "json.messages[1].content" should be "How do I bake a cake?"
+
+    When I delete the API "${CTX:apiName}"
+    Then the response should be successful
+
+  Scenario: Enforce JSON output format
+    Given I generate a unique value from "pd-json-format" and store it as "apiName"
+    And I generate a unique API version from "pd-json-format" and store it as "apiVersion"
+    And I generate a unique API context from "/pd-json-format" and store it as "apiContext"
+    When I create API from "resources/templates/rest-api.yaml" with values:
+      | apiVersion             | gateway.api-platform.wso2.com/v1                                                                                                  |
+      | name                   | ${CTX:apiName}                                                                                                                     |
+      | spec.displayName       | ${CTX:apiName}                                                                                                                     |
+      | spec.version           | ${CTX:apiVersion}                                                                                                                  |
+      | spec.context           | ${CTX:apiContext}/$version                                                                                                         |
+      | spec.upstream.main.url | http://testbench:3002                                                                                                              |
+      | spec.operations        | [{"method":"POST","path":"/chat","policies":[{"name":"prompt-decorator","version":"v1","params":{"promptDecoratorConfig":{"messages":[{"role":"system","content":"Always respond in valid JSON format."}]},"jsonPath":"$.messages","append":true}}]},{"method":"GET","path":"/health"}] |
+    Then the response should be successful
+    And I send a "GET" request to "${CTX:apiContext}/${CTX:apiVersion}/health" until status 200
+
+    When I send a "POST" request to "${CTX:apiContext}/${CTX:apiVersion}/chat" until status 200 with body:
+      """
+      {"messages":[{"role":"user","content":"List 3 programming languages"}]}
+      """
+    Then the response should be valid JSON
+    And the JSON response field "json.messages[0].content" should be "List 3 programming languages"
+    And the JSON response field "json.messages[1].content" should be "Always respond in valid JSON format."
+
+    When I delete the API "${CTX:apiName}"
+    Then the response should be successful
+
+  Scenario: Add context to an existing conversation
+    Given I generate a unique value from "pd-context" and store it as "apiName"
+    And I generate a unique API version from "pd-context" and store it as "apiVersion"
+    And I generate a unique API context from "/pd-context" and store it as "apiContext"
+    When I create API from "resources/templates/rest-api.yaml" with values:
+      | apiVersion             | gateway.api-platform.wso2.com/v1                                                                                                                                   |
+      | name                   | ${CTX:apiName}                                                                                                                                                      |
+      | spec.displayName       | ${CTX:apiName}                                                                                                                                                      |
+      | spec.version           | ${CTX:apiVersion}                                                                                                                                                   |
+      | spec.context           | ${CTX:apiContext}/$version                                                                                                                                          |
+      | spec.upstream.main.url | http://testbench:3002                                                                                                                                               |
+      | spec.operations        | [{"method":"POST","path":"/chat","policies":[{"name":"prompt-decorator","version":"v1","params":{"promptDecoratorConfig":{"messages":[{"role":"system","content":"The user is a software developer with 5 years of experience."}]},"jsonPath":"$.messages","append":false}}]},{"method":"GET","path":"/health"}] |
+    Then the response should be successful
+    And I send a "GET" request to "${CTX:apiContext}/${CTX:apiVersion}/health" until status 200
+
+    When I send a "POST" request to "${CTX:apiContext}/${CTX:apiVersion}/chat" until status 200 with body:
+      """
+      {"messages":[{"role":"system","content":"You are a coding tutor."},{"role":"user","content":"Explain async/await"},{"role":"assistant","content":"Async/await is a pattern..."},{"role":"user","content":"Can you give an example?"}]}
+      """
+    Then the response should be valid JSON
+    And the JSON response field "json.messages[0].content" should be "The user is a software developer with 5 years of experience."
+    And the JSON response field "json.messages[1].content" should be "You are a coding tutor."
+    And the JSON response field "json.messages[2].content" should be "Explain async/await"
+    And the JSON response field "json.messages[3].content" should be "Async/await is a pattern..."
+    And the JSON response field "json.messages[4].content" should be "Can you give an example?"
+
+    When I delete the API "${CTX:apiName}"
+    Then the response should be successful

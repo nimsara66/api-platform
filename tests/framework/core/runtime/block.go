@@ -70,9 +70,13 @@ type Topology struct {
 	network *Network
 	stops   []func(context.Context) error
 
-	// provisioned holds values produced by running components.
+	// provisioned holds values produced for each dependent instance.
 	provisionMu sync.Mutex
 	provisioned map[string]map[string]string
+	providers   map[string]struct {
+		def  *components.Definition
+		inst *components.Instance
+	}
 
 	// stacks contains compose-backed components addressable by service name.
 	stacks map[string]*ComposeStack
@@ -92,7 +96,7 @@ func (t *Topology) ServiceControl(name string) (*ComposeStack, string, error) {
 	matches := 0
 
 	for component, stack := range t.stacks {
-		if component == name {
+		if component == name || strings.HasPrefix(component, name+"#") {
 			found, service, matches = stack, stack.PrimaryService(), matches+1
 			continue
 		}
@@ -158,6 +162,18 @@ func (t *Topology) ComponentVersion(name string) (string, error) {
 // URL returns a named endpoint address on a component.
 func (t *Topology) URL(component, endpoint string) (string, error) {
 	inst, err := t.Component(component)
+	if err != nil {
+		return "", err
+	}
+	return inst.URL(endpoint)
+}
+
+// URLAt returns an endpoint address on a specific component replica.
+func (t *Topology) URLAt(component string, ordinal int, endpoint string) (string, error) {
+	if t == nil || t.Instances == nil {
+		return "", fmt.Errorf("runtime: topology has no instances")
+	}
+	inst, err := t.Instances.At(component, ordinal)
 	if err != nil {
 		return "", err
 	}
@@ -272,9 +288,17 @@ func (t *Topology) startComponent(
 		env[k] = v
 	}
 	// Values produced by dependencies.
-	for _, dep := range rc.AllDependencies() {
-		for k, v := range t.provisionedBy(dep) {
-			env[k] = v
+	// Compose replicas resolve dependency provisions inside the replica loop below, because
+	// each instance needs its own identity. Single-container components can resolve them once.
+	if !def.IsCompose() {
+		for _, dep := range rc.AllDependencies() {
+			values, err := t.provisionedBy(ctx, dep, def.Name)
+			if err != nil {
+				return err
+			}
+			for k, v := range values {
+				env[k] = v
+			}
 		}
 	}
 
@@ -298,38 +322,68 @@ func (t *Topology) startComponent(
 	}
 
 	if def.IsCompose() {
-		// Compose owns the generated configuration mounts.
-		generated := map[string][]byte{
-			"api-platform.env": components.EnvFileContent(env),
+		replicas := rc.Replicas
+		if replicas <= 0 {
+			replicas = 1
 		}
-		if configContent != nil {
-			generated["config.toml"] = configContent
-		}
-		spec := def.Compose.WithGenerated(generated)
-
-		stack, err := launchComposeWithRetry(ctx, def.Name, spec.BootAttempts,
-			func(ctx context.Context) (*ComposeStack, error) {
-				return LaunchCompose(ctx, def, spec, opts)
-			})
-		if stack != nil {
-			t.stops = append(t.stops, stack.Stop)
-		}
-		if err != nil {
-			if stack != nil {
-				return fmt.Errorf("starting %s: %w\nservice logs:\n%s",
-					def.Name, err, stack.Logs(ctx))
+		var lastStack *ComposeStack
+		for ordinal := 0; ordinal < replicas; ordinal++ {
+			instOpts := opts
+			instOpts.Ordinal = ordinal
+			dependent := components.Label(def.Name, ordinal, replicas)
+			replicaEnv := make(map[string]string, len(env))
+			for key, value := range env {
+				replicaEnv[key] = value
 			}
-			return fmt.Errorf("starting %s: %w", def.Name, err)
+			for _, dep := range rc.AllDependencies() {
+				oldValues, err := t.provisionedBy(ctx, dep, def.Name)
+				if err != nil {
+					return err
+				}
+				for key := range oldValues {
+					delete(replicaEnv, key)
+				}
+				values, err := t.provisionedBy(ctx, dep, dependent)
+				if err != nil {
+					return err
+				}
+				for key, value := range values {
+					replicaEnv[key] = value
+				}
+			}
+			instOpts.Env = replicaEnv
+			generated := map[string][]byte{
+				"api-platform.env": components.EnvFileContent(replicaEnv),
+			}
+			if configContent != nil {
+				generated["config.toml"] = configContent
+			}
+			spec := def.Compose.WithGenerated(generated)
+			stack, err := launchComposeWithRetry(ctx, def.Name, spec.BootAttempts,
+				func(ctx context.Context) (*ComposeStack, error) {
+					return LaunchCompose(ctx, def, spec, instOpts)
+				})
+			if stack != nil {
+				t.stops = append(t.stops, stack.Stop)
+			}
+			label := components.Label(def.Name, ordinal, replicas)
+			if err != nil {
+				if stack != nil {
+					return fmt.Errorf("starting %s: %w\nservice logs:\n%s",
+						label, err, stack.Logs(ctx))
+				}
+				return fmt.Errorf("starting %s: %w", label, err)
+			}
+			if err := t.Instances.Add(stack.Instance); err != nil {
+				return err
+			}
+			if t.stacks == nil {
+				t.stacks = map[string]*ComposeStack{}
+			}
+			t.stacks[label] = stack
+			lastStack = stack
 		}
-		if err := t.Instances.Add(stack.Instance); err != nil {
-			return err
-		}
-		// Keep compose stacks available for service lifecycle operations.
-		if t.stacks == nil {
-			t.stacks = map[string]*ComposeStack{}
-		}
-		t.stacks[def.Name] = stack
-		return t.runProvisioner(ctx, def, stack.Instance)
+		return t.runProvisioner(ctx, def, lastStack.Instance, def.Name)
 	}
 
 	opts.ConfigContent = configContent
@@ -374,7 +428,7 @@ func (t *Topology) startComponent(
 			return err
 		}
 
-		if err := t.runProvisioner(ctx, def, container.Instance); err != nil {
+		if err := t.runProvisioner(ctx, def, container.Instance, def.Name); err != nil {
 			logs, _ := container.Logs(ctx)
 			return fmt.Errorf("%w\nlogs:\n%s", err, logs)
 		}
@@ -406,29 +460,52 @@ func (t *Topology) startExternal(
 
 // runProvisioner records values produced for dependent components.
 func (t *Topology) runProvisioner(
-	ctx context.Context, def *components.Definition, inst *components.Instance,
+	ctx context.Context, def *components.Definition, inst *components.Instance, dependent string,
 ) error {
 	if def.Provisions == nil {
 		return nil
 	}
-	values, err := def.Provisions(ctx, inst)
-	if err != nil {
-		return fmt.Errorf("provisioning from %s: %w", def.Name, err)
-	}
 	t.provisionMu.Lock()
 	defer t.provisionMu.Unlock()
-	if t.provisioned == nil {
-		t.provisioned = map[string]map[string]string{}
+	if t.providers == nil {
+		t.providers = make(map[string]struct {
+			def  *components.Definition
+			inst *components.Instance
+		})
 	}
-	t.provisioned[def.Name] = values
+	t.providers[def.Name] = struct {
+		def  *components.Definition
+		inst *components.Instance
+	}{def: def, inst: inst}
 	return nil
 }
 
-// provisionedBy returns what the named component provisioned, or nil.
-func (t *Topology) provisionedBy(name string) map[string]string {
+// provisionedBy returns what the named component provisioned for dependent, or nil.
+func (t *Topology) provisionedBy(ctx context.Context, name, dependent string) (map[string]string, error) {
 	t.provisionMu.Lock()
-	defer t.provisionMu.Unlock()
-	return t.provisioned[name]
+	provider, ok := t.providers[name]
+	t.provisionMu.Unlock()
+	if !ok || provider.def.Provisions == nil {
+		return nil, nil
+	}
+	key := name + "#" + dependent
+	t.provisionMu.Lock()
+	if values, ok := t.provisioned[key]; ok {
+		t.provisionMu.Unlock()
+		return values, nil
+	}
+	t.provisionMu.Unlock()
+	values, err := provider.def.Provisions(ctx, provider.inst, dependent)
+	if err != nil {
+		return nil, fmt.Errorf("provisioning from %s: %w", name, err)
+	}
+	t.provisionMu.Lock()
+	if t.provisioned == nil {
+		t.provisioned = map[string]map[string]string{}
+	}
+	t.provisioned[key] = values
+	t.provisionMu.Unlock()
+	return values, nil
 }
 
 // startShared attaches a shared component to the block's network.
@@ -459,7 +536,7 @@ func (t *Topology) startShared(
 	if err := t.Instances.Add(container.Instance); err != nil {
 		return err
 	}
-	return t.runProvisioner(ctx, def, container.Instance)
+	return t.runProvisioner(ctx, def, container.Instance, def.Name)
 }
 
 // publishAccessors puts everything a step needs into shared scope.
@@ -512,6 +589,10 @@ func (t *Topology) CollectCoverage(ctx context.Context, sink *coverage.Sink) err
 	for component, stack := range t.stacks {
 		for _, coverageService := range stack.CoverageServices() {
 			svc := coverageService.Name
+			output := coverageService.OutputName
+			if output == "" {
+				output = svc
+			}
 			coverageType := strings.Join(coverageService.Types, ",")
 			// The container ID must be resolved while the service still runs — the
 			// lookup behind it only sees running containers.
@@ -524,7 +605,7 @@ func (t *Topology) CollectCoverage(ctx context.Context, sink *coverage.Sink) err
 				errs = append(errs, fmt.Errorf("%s/%s (%s): %w", component, svc, coverageType, err))
 				continue
 			}
-			dst, err := sink.Dir(t.Block.Name, svc)
+			dst, err := sink.Dir(t.Block.Name, output)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("%s/%s (%s): %w", component, svc, coverageType, err))
 				continue

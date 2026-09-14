@@ -101,6 +101,7 @@ func All() []*components.Definition {
 		platformgateway.PlatformGateway(),
 		platformapi.PlatformAPI(),
 		apiportal.APIPortal(),
+		apiportal.APIPortalOtherOrg(),
 		aiworkspace.AIWorkspace(),
 		browser.Browser(),
 		cloudconsole.CloudConsole(),

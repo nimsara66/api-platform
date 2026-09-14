@@ -79,12 +79,60 @@ func Register(sc *godog.ScenarioContext, topo *runtime.Topology, client *httpx.C
 	sc.Step(`^the control plane should have undeployed the "Mcp" artifact "([^"]*)"$`,
 		func(ctx context.Context, name string) error { return s.mcpDeploymentStatus(ctx, name, "UNDEPLOYED") })
 	sc.Step(`^I create a project "([^"]*)" on the control plane$`, s.createProject)
+	sc.Step(`^platform-api reports the subscription for API "([^"]*)" using plan "([^"]*)"$`, s.subscriptionPlanMatches)
 	RegisterDeploy(sc, s)
 }
 
 // baseURL resolves the control plane's HTTPS base URL for this block.
 func (s *Steps) baseURL() (string, error) {
 	return s.topo.URL("platform-api", "https")
+}
+
+// BaseURL resolves the control-plane URL for steps implemented in another product package.
+func BaseURL(topo *runtime.Topology) (string, error) {
+	return topo.URL("platform-api", "https")
+}
+
+// InternalBaseURL resolves the control-plane URL as reachable from a container on this block's
+// network.
+func InternalBaseURL(topo *runtime.Topology) (string, error) {
+	inst, err := topo.Component("platform-api")
+	if err != nil {
+		return "", err
+	}
+	return inst.InternalURL("https")
+}
+
+// SubscriptionPlanUUID returns the control-plane identifier needed by API Portal's plan link.
+func SubscriptionPlanUUID(ctx context.Context, topo *runtime.Topology, client *httpx.Client, handle string) (string, error) {
+	base, err := BaseURL(topo)
+	if err != nil {
+		return "", err
+	}
+	bearer, err := controlplane.ControlPlaneLogin(ctx, base, actor.Administrator().Username, actor.Administrator().Password)
+	if err != nil {
+		return "", fmt.Errorf("authenticating to the control plane: %w", err)
+	}
+	resp, err := client.Do(ctx, httpx.Request{
+		Method: http.MethodGet, URL: base + apiBase + "/subscription-plans/" + handle,
+		Headers: map[string]string{"Authorization": "Bearer " + bearer},
+	}, 0, 0)
+	if err != nil {
+		return "", fmt.Errorf("looking up subscription plan %q: %w", handle, err)
+	}
+	if !resp.Succeeded() {
+		return "", fmt.Errorf("looking up subscription plan %q: %s", handle, resp.Describe())
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(resp.Body, &doc); err != nil {
+		return "", fmt.Errorf("decoding subscription plan %q: %w", handle, err)
+	}
+	for _, key := range []string{"uuid", "id"} {
+		if value, ok := doc[key].(string); ok && value != "" {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("subscription plan %q has no id or uuid", handle)
 }
 
 // bearer logs in as the fixed test administrator, exactly as the platform-api catalog
@@ -108,6 +156,39 @@ func (s *Steps) get(ctx context.Context, base, bearer, path string) (*httpx.Resp
 		return nil, retry.Transient(err)
 	}
 	return resp, nil
+}
+
+func (s *Steps) subscriptionPlanMatches(ctx context.Context, apiHandle, planHandle string) error {
+	resolvedAPI, err := stepscommon.Expand(ctx, apiHandle)
+	if err != nil {
+		return err
+	}
+	resolvedPlan, err := stepscommon.Expand(ctx, planHandle)
+	if err != nil {
+		return err
+	}
+	base, err := s.baseURL()
+	if err != nil {
+		return err
+	}
+	bearer, err := s.bearer(ctx, base)
+	if err != nil {
+		return err
+	}
+	return retry.Await(ctx, retry.Options{}, func(ctx context.Context) (*httpx.Response, error) {
+		return s.get(ctx, base, bearer, "/subscriptions?artifactId="+resolvedAPI)
+	}, func(resp *httpx.Response) bool {
+		if resp == nil || resp.StatusCode != http.StatusOK {
+			return false
+		}
+		var doc struct {
+			List []struct {
+				SubscriptionPlanName string `json:"subscriptionPlanName"`
+			} `json:"list"`
+		}
+		return json.Unmarshal(resp.Body, &doc) == nil && len(doc.List) > 0 &&
+			doc.List[0].SubscriptionPlanName == resolvedPlan
+	}, fmt.Sprintf("waiting for platform-api to report subscription plan %q for API %q", resolvedPlan, resolvedAPI))
 }
 
 // artifactPath resolves a gateway artifact kind to its control-plane collection path,

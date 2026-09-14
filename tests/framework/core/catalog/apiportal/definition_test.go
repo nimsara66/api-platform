@@ -49,6 +49,16 @@ func TestAPIPortalDefinition(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestAPIPortalOtherOrgUsesBaseComposeWithOrganizationOverride(t *testing.T) {
+	definition := APIPortalOtherOrg()
+	require.Equal(t, "api-portal-other-org", definition.Name)
+	require.Equal(t, "api-portal", definition.Compose.PrimaryService)
+	require.Equal(t, []string{"api-portal"}, definition.Compose.Services)
+	require.Equal(t, []string{"tests/framework/core/catalog/apiportal/docker-compose.other-org.yaml"},
+		definition.Compose.ComposeOverrideFiles)
+	require.Equal(t, "api-portal-other-org", definition.Compose.CoverageServices[0].OutputName)
+}
+
 func TestAPIPortalCoverageEnvironmentFollowsRunMode(t *testing.T) {
 	t.Setenv(shared.EnvCoverageMode, "false")
 	require.NotContains(t, APIPortal().Compose.Env, "NODE_V8_COVERAGE")

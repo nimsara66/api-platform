@@ -106,7 +106,7 @@ func TestPlatformAPIBoots(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "/coverage", coverageEnv, "the instrumented service must receive GOCOVERDIR")
 
-	values, err := def.Provisions(ctx, stack.Instance)
+	values, err := def.Provisions(ctx, stack.Instance, "platform-gateway")
 	if err != nil {
 		t.Fatalf("provisioner failed: %v\nlogs:\n%s", err, stack.Logs(ctx))
 	}

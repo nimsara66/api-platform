@@ -33,7 +33,9 @@ import (
 	"github.com/wso2/api-platform/tests/framework/testbench/services/interceptor"
 	"github.com/wso2/api-platform/tests/framework/testbench/services/jwks"
 	"github.com/wso2/api-platform/tests/framework/testbench/services/mcp"
+	"github.com/wso2/api-platform/tests/framework/testbench/services/oauth2"
 	"github.com/wso2/api-platform/tests/framework/testbench/services/openai"
+	"github.com/wso2/api-platform/tests/framework/testbench/services/webhook"
 )
 
 // EnvImageTestbench overrides the testbench image, for CI to pin a build.
@@ -80,6 +82,8 @@ func Testbench() *components.Definition {
 			// it remembers what it actually received per path, addressed as
 			// http://testbench:3010/<block>/... See testbench/services/capture.
 			{Name: "capture", Port: capture.Port, Scheme: "http", AwaitListening: true},
+			{Name: "oauth2", Port: oauth2.Port, Scheme: "http", AwaitListening: true},
+			{Name: "webhook", Port: webhook.Port, Scheme: "http", AwaitListening: true},
 		},
 		// Every service answers the same health path on its own port, so gating on one is
 		// gating on the process. AwaitListening above already proves each port is bound.

@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 
@@ -42,6 +43,7 @@ import (
 	"github.com/wso2/api-platform/tests/framework/core/topology"
 	"github.com/wso2/api-platform/tests/framework/core/util/httpx"
 	"github.com/wso2/api-platform/tests/framework/suites/ui/steps"
+	apiportalsteps "github.com/wso2/api-platform/tests/framework/suites/ui/steps/apiportal"
 )
 
 var selection topology.Selection
@@ -276,6 +278,15 @@ func registerUIDeleters(reg *cleanup.Registry, topo *frameworkruntime.Topology) 
 	reg.RegisterDeleter(cleanup.KindGateway, platformAPIDeleter(auth, "/api/v0.9/gateways"))
 	reg.RegisterDeleter(cleanup.KindApplication, platformAPIDeleter(auth, "/api/v0.9/applications"))
 	reg.RegisterDeleter(cleanup.KindAPIKey, deleteAPIKey(auth))
+	portalAuth := &apiPortalAuth{topo: topo, client: client, cookies: map[string]string{}}
+	reg.RegisterDeleter(apiportalsteps.KindAPIPortalAPI, portalAPIDeleter(portalAuth, "apis"))
+	reg.RegisterDeleter(apiportalsteps.KindAPIPortalMCP, portalAPIDeleter(portalAuth, "mcp-servers"))
+	reg.RegisterDeleter(apiportalsteps.KindAPIPortalApplication, portalAPIDeleter(portalAuth, "applications"))
+	reg.RegisterDeleter(apiportalsteps.KindAPIPortalApplicationKey, portalAPIApplicationKeyDeleter(portalAuth))
+	reg.RegisterDeleter(apiportalsteps.KindAPIPortalKeyManager, portalAPIDeleter(portalAuth, "key-managers"))
+	reg.RegisterDeleter(apiportalsteps.KindAPIPortalView, portalAPIDeleter(portalAuth, "views"))
+	reg.RegisterDeleter(apiportalsteps.KindAPIPortalLabel, portalAPIDeleter(portalAuth, "labels"))
+	reg.RegisterDeleter(apiportalsteps.KindAPIPortalWorkflow, portalAPIWorkflowDeleter(portalAuth))
 }
 
 // platformAPIAuth authenticates against platform-api's own login endpoint the first time a
@@ -343,6 +354,174 @@ func platformAPIDeleter(auth *platformAPIAuth, collection string) cleanup.Delete
 			Method:  http.MethodDelete,
 			URL:     base + collection + "/" + res.ID,
 			Headers: map[string]string{"Authorization": authHeader},
+		}, 1, 0)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode == http.StatusNotFound || resp.Succeeded() {
+			return nil
+		}
+		return fmt.Errorf("cleanup: %s", resp.Describe())
+	}
+}
+
+// apiPortalAuth owns the cookie session used by Portal-owned resource deleters. Portal
+// resources are separate from Platform API resources, so their cleanup must authenticate
+// against the Portal management API rather than reuse the Platform API bearer token.
+type apiPortalAuth struct {
+	topo    *frameworkruntime.Topology
+	client  *httpx.Client
+	cookies map[string]string
+}
+
+func (a *apiPortalAuth) baseURL() (string, error) {
+	return a.topo.URL("api-portal", "http")
+}
+
+func (a *apiPortalAuth) cookieHeader() string {
+	parts := make([]string, 0, len(a.cookies))
+	for name, value := range a.cookies {
+		parts = append(parts, name+"="+value)
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "; ")
+}
+
+func (a *apiPortalAuth) rememberCookies(resp *httpx.Response) {
+	for _, raw := range resp.Headers.Values("Set-Cookie") {
+		pair := strings.SplitN(raw, ";", 2)[0]
+		name, value, ok := strings.Cut(pair, "=")
+		if ok {
+			a.cookies[name] = value
+		}
+	}
+}
+
+func (a *apiPortalAuth) authHeaders(ctx context.Context) (map[string]string, error) {
+	if len(a.cookies) == 0 {
+		base, err := a.baseURL()
+		if err != nil {
+			return nil, err
+		}
+		loginURL := base + "/api-portal/default/views/default/login"
+		resp, err := a.client.Do(ctx, httpx.Request{Method: http.MethodGet, URL: loginURL}, 1, 0)
+		if err != nil {
+			return nil, fmt.Errorf("loading API Portal login: %w", err)
+		}
+		a.rememberCookies(resp)
+		form := url.Values{
+			"username": {a.topo.Admin.Username},
+			"password": {a.topo.Admin.Password},
+		}
+		resp, err = a.client.Do(ctx, httpx.Request{
+			Method: http.MethodPost, URL: loginURL,
+			Headers:     map[string]string{"Cookie": a.cookieHeader()},
+			ContentType: "application/x-www-form-urlencoded", Body: []byte(form.Encode()),
+		}, 1, 0)
+		if err != nil {
+			return nil, fmt.Errorf("authenticating against API Portal: %w", err)
+		}
+		a.rememberCookies(resp)
+		if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+			return nil, fmt.Errorf("API Portal login returned HTTP status %d", resp.StatusCode)
+		}
+		// Login may rotate the session identifier. Load a portal page with the new
+		// session so the CSRF cookie is generated for that session before deletion.
+		resp, err = a.client.Do(ctx, httpx.Request{
+			Method: http.MethodGet, URL: base + "/api-portal",
+			Headers: map[string]string{"Cookie": a.cookieHeader()},
+		}, 1, 0)
+		if err != nil {
+			return nil, fmt.Errorf("loading API Portal after authentication: %w", err)
+		}
+		a.rememberCookies(resp)
+	}
+	headers := map[string]string{
+		"Cookie":       a.cookieHeader(),
+		"organization": "default",
+	}
+	if token, ok := a.cookies["XSRF-TOKEN"]; ok {
+		decoded, err := url.QueryUnescape(token)
+		if err != nil {
+			return nil, fmt.Errorf("decoding API Portal CSRF token: %w", err)
+		}
+		headers["X-CSRF-Token"] = decoded
+	}
+	return headers, nil
+}
+
+func portalAPIDeleter(auth *apiPortalAuth, collection string) cleanup.Deleter {
+	return func(ctx context.Context, res cleanup.Resource) error {
+		base, err := auth.baseURL()
+		if err != nil {
+			return err
+		}
+		headers, err := auth.authHeaders(ctx)
+		if err != nil {
+			return err
+		}
+		resp, err := auth.client.Do(ctx, httpx.Request{
+			Method:  http.MethodDelete,
+			URL:     base + "/api-portal/api/v0.9/" + collection + "/" + url.PathEscape(res.ID),
+			Headers: headers,
+		}, 1, 0)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode == http.StatusNotFound || resp.Succeeded() {
+			return nil
+		}
+		return fmt.Errorf("cleanup: %s", resp.Describe())
+	}
+}
+
+func portalAPIWorkflowDeleter(auth *apiPortalAuth) cleanup.Deleter {
+	return func(ctx context.Context, res cleanup.Resource) error {
+		parts := strings.SplitN(res.ID, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf("cleanup: API Portal workflow resource id is not \"view/workflow\"")
+		}
+		base, err := auth.baseURL()
+		if err != nil {
+			return err
+		}
+		headers, err := auth.authHeaders(ctx)
+		if err != nil {
+			return err
+		}
+		resp, err := auth.client.Do(ctx, httpx.Request{
+			Method:  http.MethodDelete,
+			URL:     base + "/api-portal/api/v0.9/views/" + url.PathEscape(parts[0]) + "/api-workflows/" + url.PathEscape(parts[1]),
+			Headers: headers,
+		}, 1, 0)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode == http.StatusNotFound || resp.Succeeded() {
+			return nil
+		}
+		return fmt.Errorf("cleanup: %s", resp.Describe())
+	}
+}
+
+func portalAPIApplicationKeyDeleter(auth *apiPortalAuth) cleanup.Deleter {
+	return func(ctx context.Context, res cleanup.Resource) error {
+		parts := strings.SplitN(res.ID, "/", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("cleanup: API Portal application key resource id %q is not \"application/mapping\"", res.ID)
+		}
+		base, err := auth.baseURL()
+		if err != nil {
+			return err
+		}
+		headers, err := auth.authHeaders(ctx)
+		if err != nil {
+			return err
+		}
+		resp, err := auth.client.Do(ctx, httpx.Request{
+			Method:  http.MethodDelete,
+			URL:     base + "/api-portal/api/v0.9/applications/" + url.PathEscape(parts[0]) + "/oauth-keys/" + url.PathEscape(parts[1]),
+			Headers: headers,
 		}, 1, 0)
 		if err != nil {
 			return err

@@ -241,11 +241,19 @@ Feature: MCP proxy CRUD and connectivity
     Then the response should be a client error
     And the response should be valid JSON
 
-  # The mcp.yaml template's own placeholders (displayName/version/context/specVersion) are
-  # always required by the renderer itself, so a "missing required field" case can only be
-  # expressed for a field the template supplies through an omittable dotted-path overlay -
-  # upstream is the one such field, covered below. A field the template hardcodes cannot be
-  # omitted through this mechanism, so no separate "missing required fields" scenario exists.
+  Scenario: Deploy an MCP proxy with missing required fields returns an error
+    Given I generate a unique resource name from "mcp-incomplete" and store it as "mcpName"
+    When I create MCP proxy from "resources/templates/mcp.yaml" with values:
+      | apiVersion  | gateway.api-platform.wso2.com/v1 |
+      | name        | ${CTX:mcpName}                    |
+      | displayName | Ignored                           |
+      | version     | v1.0                              |
+      | context     | /ignored                          |
+      | specVersion | 2025-06-18                        |
+      | spec        | {"displayName":"Incomplete MCP"} |
+    Then the response should be a client error
+    And the response should be valid JSON
+    And the JSON response field "status" should be "error"
 
   Scenario: Deploy an MCP proxy with an invalid spec version returns 400
     Given I generate a unique resource name from "mcp-invalid-spec-version" and store it as "mcpName"
