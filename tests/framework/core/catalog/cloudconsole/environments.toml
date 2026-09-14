@@ -1,0 +1,4 @@
+# Non-secret APIP cloud endpoint mapping. Select an environment with -cloud-env.
+
+[environments.development]
+cloud_base_domain = "dev.cloud.wso2.com"
