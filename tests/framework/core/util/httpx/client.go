@@ -21,6 +21,7 @@ package httpx
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -107,6 +108,9 @@ type Options struct {
 	RetryDelay time.Duration
 	// RetryOn recognises transient responses.
 	RetryOn []TransientMatcher
+	// TLSClientConfig configures certificate verification for trusted test services.
+	// A nil value uses the system verification roots and hostname from the URL.
+	TLSClientConfig *tls.Config
 }
 
 // NewClient returns a client suitable for talking to components under test.
@@ -127,6 +131,7 @@ func NewClient(opts Options) *Client {
 			MaxIdleConns:        200,
 			MaxIdleConnsPerHost: 50,
 			MaxConnsPerHost:     100,
+			TLSClientConfig:     opts.TLSClientConfig,
 		},
 	}
 	if !opts.FollowRedirects {

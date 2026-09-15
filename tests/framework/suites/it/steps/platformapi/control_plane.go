@@ -235,9 +235,27 @@ func (s *Steps) awaitArtifact(
 }
 
 func (s *Steps) shouldReceive(ctx context.Context, kind, name string) error {
-	return s.awaitArtifact(ctx, kind, name,
+	if err := s.awaitArtifact(ctx, kind, name,
 		fmt.Sprintf("waiting for the control plane to receive the %s artifact %q", kind, name),
-		func(r *httpx.Response) bool { return r != nil && r.StatusCode == http.StatusOK })
+		func(r *httpx.Response) bool { return r != nil && r.StatusCode == http.StatusOK }); err != nil {
+		return err
+	}
+
+	// A gateway-originated MCP is stored in both the gateway and control plane. The gateway
+	// cleanup removes the data-plane resource, but the asynchronously imported control-plane
+	// row must also be removed before its owning project can be deleted.
+	resolvedKind, err := stepscommon.Expand(ctx, kind)
+	if err != nil {
+		return err
+	}
+	if resolvedKind != "Mcp" {
+		return nil
+	}
+	resolvedName, err := stepscommon.Expand(ctx, name)
+	if err != nil {
+		return err
+	}
+	return s.registerPlatformResource(ctx, platformMCPKind, resolvedName, "/mcp-proxies")
 }
 
 func (s *Steps) shouldNotReceive(ctx context.Context, kind, name string) error {

@@ -117,7 +117,7 @@ func PlatformAPI() *components.Definition {
 
 		Provisions: provisionGatewayRegistration,
 
-		Limits: components.ResourceLimits{CPUs: 1, MemoryMB: 1000},
+		Limits: components.ResourceLimits{CPUs: 1.5, MemoryMB: 2048},
 	}
 }
 

@@ -19,25 +19,88 @@
 roles:
   - name: ap_admin
     scopes:
+      - dp:organization:read
+      - dp:organization:create
+      - dp:organization:update
       - dp:organization:manage
+      - dp:organization:delete
+      - dp:organization_content:read
       - dp:organization_content:manage
+      - dp:api:read
+      - dp:api:create
+      - dp:api:update
       - dp:api:manage
+      - dp:api:delete
+      - dp:api_content:read
+      - dp:api_content:create
+      - dp:api_content:update
       - dp:api_content:manage
+      - dp:api_content:delete
+      - dp:mcp_server:read
+      - dp:mcp_server:create
+      - dp:mcp_server:update
       - dp:mcp_server:manage
+      - dp:mcp_server:delete
+      - dp:mcp_server_content:read
+      - dp:mcp_server_content:create
+      - dp:mcp_server_content:update
       - dp:mcp_server_content:manage
+      - dp:mcp_server_content:delete
+      - dp:api_workflow:create
+      - dp:api_workflow:read
+      - dp:api_workflow:update
+      - dp:api_workflow:delete
       - dp:api_workflow:manage
+      - dp:api_key:create
+      - dp:api_key:read
+      - dp:api_key:update
       - dp:api_key:manage
+      - dp:api_key:revoke
+      - dp:mcp_server_key:create
+      - dp:mcp_server_key:read
+      - dp:mcp_server_key:update
       - dp:mcp_server_key:manage
+      - dp:mcp_server_key:revoke
+      - dp:application:create
+      - dp:application:read
+      - dp:application:update
       - dp:application:manage
+      - dp:application:delete
+      - dp:application_key:create
       - dp:application_key:manage
       - dp:application_key:revoke
+      - dp:application_key_mapping:read
+      - dp:application_key_mapping:create
       - dp:application_key_mapping:manage
+      - dp:subscription:create
+      - dp:subscription:read
+      - dp:subscription:update
       - dp:subscription:manage
+      - dp:subscription:delete
+      - dp:subscription_plan:create
+      - dp:subscription_plan:read
+      - dp:subscription_plan:update
       - dp:subscription_plan:manage
-      - dp:key_manager:manage
+      - dp:subscription_plan:delete
+      - dp:key_manager:create
       - dp:key_manager:read
+      - dp:key_manager:update
+      - dp:key_manager:manage
+      - dp:key_manager:delete
+      - dp:view:create
+      - dp:view:read
+      - dp:view:update
       - dp:view:manage
+      - dp:view:delete
+      - dp:label:create
+      - dp:label:read
+      - dp:label:update
       - dp:label:manage
+      - dp:label:delete
+      - dp:webhook_subscriber:create
+      - dp:webhook_subscriber:read
+      - dp:webhook_subscriber:update
+      - dp:webhook_subscriber:delete
       - dp:webhook_subscriber:manage
       - dp:event:read
 
@@ -53,7 +116,7 @@ roles:
       - dp:subscription:read
       - dp:api_key:read
 
-  # These identities are declared by the shared file-auth test overlay. They are
+  # These identities are declared by the API Portal authorization file-auth overlay. They are
   # not used by the authorization scenarios, but must remain valid configuration.
   - name: ap_subscriber
     scopes: []

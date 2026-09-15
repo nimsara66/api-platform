@@ -191,6 +191,7 @@ Feature: API Portal resource management
       """
     Then the response status code should be 200
     And I store the JSON response field "keyMappingId" as "keyMappingId"
+    And I register API Portal application key mapping "${CTX:keyMappingId}" for application "${CTX:appId}" for cleanup
     When I send an authenticated API Portal "POST" request to "/applications/${CTX:appId}/oauth-keys/${CTX:keyMappingId}/generate-token" as "developer" with JSON body:
       """
       {"consumerSecret":"test-secret"}
@@ -215,6 +216,7 @@ Feature: API Portal resource management
       """
     Then the response status code should be 200
     And I store the JSON response field "keyMappingId" as "keyMappingId"
+    And I register API Portal application key mapping "${CTX:keyMappingId}" for application "${CTX:appId}" for cleanup
     When I send an authenticated API Portal "POST" request to "/applications/${CTX:appId}/oauth-keys/${CTX:keyMappingId}/generate-token" as "developer" with JSON body:
       """
       {"consumerSecret":"wrong-secret"}
@@ -238,6 +240,7 @@ Feature: API Portal resource management
       """
     Then the response status code should be 200
     And I store the JSON response field "keyMappingId" as "keyMappingId"
+    And I register API Portal application key mapping "${CTX:keyMappingId}" for application "${CTX:appId}" for cleanup
     When I send an authenticated API Portal "POST" request to "/applications/${CTX:appId}/oauth-keys/${CTX:keyMappingId}/generate-token" as "developer" with JSON body:
       """
       {"consumerSecret":"test-secret"}

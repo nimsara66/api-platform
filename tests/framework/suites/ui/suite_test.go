@@ -20,6 +20,8 @@ package ui_test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -291,7 +293,10 @@ func TestRepoRootFindsWorkspaceRoot(t *testing.T) {
 // platform-gateway's management API under those same names. Registries are per-suite and
 // never collide at runtime, but the two suites mean different underlying resources by them.
 func registerUIDeleters(reg *cleanup.Registry, topo *frameworkruntime.Topology) {
-	client := httpx.NewClient(httpx.Options{MaxRetries: 1})
+	client := httpx.NewClient(httpx.Options{
+		MaxRetries:      1,
+		TLSClientConfig: platformAPITLSConfig(),
+	})
 	auth := &platformAPIAuth{topo: topo, client: client}
 
 	reg.RegisterDeleter(cleanup.KindLLMProvider, platformAPIDeleter(auth, "/api/v0.9/llm-providers"))
@@ -312,6 +317,17 @@ func registerUIDeleters(reg *cleanup.Registry, topo *frameworkruntime.Topology) 
 	reg.RegisterDeleter(apiportalsteps.KindAPIPortalView, portalAPIDeleter(portalAuth, "views"))
 	reg.RegisterDeleter(apiportalsteps.KindAPIPortalLabel, portalAPIDeleter(portalAuth, "labels"))
 	reg.RegisterDeleter(apiportalsteps.KindAPIPortalWorkflow, portalAPIWorkflowDeleter(portalAuth))
+}
+
+func platformAPITLSConfig() *tls.Config {
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil || rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+	if ok := rootCAs.AppendCertsFromPEM(shared.ControlPlaneCrypto()["certs/cert.pem"]); !ok {
+		panic("loading the generated Platform API CA certificate")
+	}
+	return &tls.Config{RootCAs: rootCAs, ServerName: "platform-api"}
 }
 
 // platformAPIAuth authenticates against platform-api's own login endpoint the first time a

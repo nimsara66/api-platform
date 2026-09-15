@@ -89,12 +89,13 @@ const apiPrefix = "/api-portal/api/v0.9"
 const webhookSubscriberID = "platform-api"
 
 var (
-	portalAPIKeyKind           = cleanup.Kind{Name: "api-portal-api-key", Order: 10}
-	portalSubscriptionKind     = cleanup.Kind{Name: "api-portal-subscription", Order: 20}
-	portalApplicationKind      = cleanup.Kind{Name: "api-portal-application", Order: 30}
-	portalAPIKind              = cleanup.Kind{Name: "api-portal-api", Order: 40}
-	portalSubscriptionPlanKind = cleanup.Kind{Name: "api-portal-subscription-plan", Order: 50}
-	portalWebhookKind          = cleanup.Kind{Name: "api-portal-webhook-subscriber", Order: 60}
+	portalAPIKeyKind                = cleanup.Kind{Name: "api-portal-api-key", Order: 10}
+	portalSubscriptionKind          = cleanup.Kind{Name: "api-portal-subscription", Order: 20}
+	portalApplicationKeyMappingKind = cleanup.Kind{Name: "api-portal-application-key-mapping", Order: 25}
+	portalApplicationKind           = cleanup.Kind{Name: "api-portal-application", Order: 30}
+	portalAPIKind                   = cleanup.Kind{Name: "api-portal-api", Order: 40}
+	portalSubscriptionPlanKind      = cleanup.Kind{Name: "api-portal-subscription-plan", Order: 50}
+	portalWebhookKind               = cleanup.Kind{Name: "api-portal-webhook-subscriber", Order: 60}
 )
 
 // Steps holds what every api-portal REST call needs.
@@ -197,6 +198,8 @@ func Register(sc *godog.ScenarioContext, topo *runtime.Topology, client *httpx.C
 		s.createJSONResourceWithValues)
 	sc.Step(`^I register API Portal resource "([^"]*)" at "([^"]*)" for cleanup$`,
 		s.registerResourceForCleanup)
+	sc.Step(`^I register API Portal application key mapping "([^"]*)" for application "([^"]*)" for cleanup$`,
+		s.registerApplicationKeyMappingForCleanup)
 	sc.Step(`^I upload default API Portal content for API "([^"]*)" as "([^"]*)"$`,
 		s.uploadAPIContent)
 	sc.Step(`^I upload API Portal content "([^"]*)" for API "([^"]*)" as "([^"]*)"$`,
@@ -1591,7 +1594,7 @@ func (s *Steps) createMCPServerWithLabel(ctx context.Context, label, storeAs str
 	var created struct {
 		ID string `json:"id"`
 	}
-	if err := s.postYAMLMultipart(ctx, base, token, "/mcp-servers", string(metadata), portalMCPDefinition, &created); err != nil {
+	if err := s.postYAMLMultipart(ctx, base, token, "/mcp-servers", string(metadata), portalMCPDefinition, &created, ""); err != nil {
 		return err
 	}
 	if created.ID == "" {
@@ -1721,6 +1724,23 @@ func (s *Steps) registerResourceForCleanup(ctx context.Context, id, path string)
 	}
 	return s.registerPortalResource(ctx, portalResourceKind(path), id, cleanup.ScenarioScope,
 		portalCleanupRequest{method: http.MethodDelete, path: path})
+}
+
+func (s *Steps) registerApplicationKeyMappingForCleanup(ctx context.Context, mappingID, applicationID string) error {
+	mappingID, err := stepscommon.Expand(ctx, mappingID)
+	if err != nil {
+		return err
+	}
+	applicationID, err = stepscommon.Expand(ctx, applicationID)
+	if err != nil {
+		return err
+	}
+	return s.registerPortalResource(ctx, portalApplicationKeyMappingKind, mappingID, cleanup.ScenarioScope,
+		portalCleanupRequest{
+			method: http.MethodDelete,
+			path:   "/applications/" + applicationID + "/oauth-keys",
+			role:   "developer",
+		})
 }
 
 func (s *Steps) uploadAPIContent(ctx context.Context, apiID, role string) error {
@@ -2367,13 +2387,20 @@ func (s *Steps) putJSON(ctx context.Context, base, token, path string, payload, 
 	return decodeJSON(resp, path, out)
 }
 
-// postYAMLMultipart issues an authenticated multipart POST with a metadata YAML part and a
-// definition YAML part — the shape POST /apis expects when publishing an API (metadata.yaml +
-// definition.yaml, each application/yaml), matching api-portal's own artifact-import format.
-func (s *Steps) postYAMLMultipart(ctx context.Context, base, token, path, metadataYAML, definitionYAML string, out any) error {
+// postYAMLMultipart issues an authenticated multipart POST with a definition YAML part. When
+// metadataFilename is non-empty, metadata is uploaded as a YAML file as required by the
+// artifact-style API import path; an empty filename keeps the JSON metadata-field behavior used
+// by the MCP fixture.
+func (s *Steps) postYAMLMultipart(ctx context.Context, base, token, path, metadataYAML, definitionYAML string, out any, metadataFilename string) error {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	writer.WriteField("metadata", metadataYAML)
+	if metadataFilename == "" {
+		if err := writer.WriteField("metadata", metadataYAML); err != nil {
+			return fmt.Errorf("building multipart request to %s: %w", path, err)
+		}
+	} else if err := addYAMLPart(writer, "metadata", metadataFilename, metadataYAML); err != nil {
+		return fmt.Errorf("building multipart request to %s: %w", path, err)
+	}
 	if err := addYAMLPart(writer, "definition", "definition.yaml", definitionYAML); err != nil {
 		return fmt.Errorf("building multipart request to %s: %w", path, err)
 	}
@@ -2530,7 +2557,7 @@ paths:
           description: ok
 `, name)
 
-	if err := s.postYAMLMultipart(ctx, base, token, "/apis", metadataYAML, definitionYAML, nil); err != nil {
+	if err := s.postYAMLMultipart(ctx, base, token, "/apis", metadataYAML, definitionYAML, nil, "metadata.yaml"); err != nil {
 		return err
 	}
 	return s.registerPortalResource(ctx, portalAPIKind, name, cleanup.ScenarioScope,

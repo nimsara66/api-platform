@@ -64,7 +64,7 @@ func apiPortalDefinition(name, composeFile, organization, displayName, portalID,
 
 			Env: env,
 			StagedFiles: map[string]string{
-				"role-to-scope-mapping.yaml": "portals/api-portal/it/configs/portal-roles-it.yaml",
+				"role-to-scope-mapping.yaml": "tests/framework/core/catalog/apiportal/resources/api-portal-auth-roles.yaml",
 			},
 			PrimaryService: serviceName,
 			Services:       []string{serviceName},
