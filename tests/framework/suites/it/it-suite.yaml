@@ -19,7 +19,7 @@
 suite: it-suite
 
 defaults:
-  parallel: 9
+  parallel: 6
   components:
     platform-gateway:
       db: sqlite
