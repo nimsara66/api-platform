@@ -21,7 +21,6 @@ package httpx
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -125,7 +124,6 @@ func NewClient(opts Options) *Client {
 	httpClient := &http.Client{
 		Timeout: opts.Timeout,
 		Transport: &http.Transport{
-			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
 			MaxIdleConns:        200,
 			MaxIdleConnsPerHost: 50,
 			MaxConnsPerHost:     100,

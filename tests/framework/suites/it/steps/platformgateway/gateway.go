@@ -1301,7 +1301,7 @@ func (g *Gateway) serviceUpstreamURL(ctx context.Context, service, path string) 
 		}
 		resolved = "/" + g.topo.Block.PartitionKey() + resolved
 	}
-	return base + resolved, nil
+	return base + spec.basePath + resolved, nil
 }
 
 // resolveServiceURLAndStore resolves a testbench service's URL and stores it in local scope, for

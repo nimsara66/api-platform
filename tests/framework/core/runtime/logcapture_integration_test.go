@@ -44,6 +44,7 @@ func TestLaunchStreamsContainerOutputIntoTheBlockLogFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "block.log")
 	writer, err := logcapture.NewWriter(path)
 	require.NoError(t, err)
+	t.Cleanup(writer.Close)
 
 	def := probeDef("logcapture-probe")
 	c, err := Launch(ctx, def, Options{Network: nw, Replicas: 1, LogWriter: writer})

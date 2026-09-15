@@ -150,6 +150,9 @@ func TestIssueTokenRejectsUnexpectedConfiguredSecret(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
+	if got, want := rec.Body.String(), `{"error":"unauthorized","message":"Invalid or expired credentials."}`; got != want {
+		t.Fatalf("body = %q, want %q", got, want)
+	}
 }
 
 func TestHandlersRejectNonGetMethods(t *testing.T) {
@@ -185,6 +188,24 @@ func TestIssueTokenAcceptsClientCredentialsPost(t *testing.T) {
 	}
 	if response.AccessToken == "" || response.TokenType != "Bearer" || response.Scope != "read write" {
 		t.Fatalf("unexpected token response metadata: type=%q scope=%q token present=%t", response.TokenType, response.Scope, response.AccessToken != "")
+	}
+}
+
+func TestIssueTokenNormalizesMethodBeforeValidation(t *testing.T) {
+	s := newTestService(t)
+
+	for _, method := range []string{"get", "post"} {
+		t.Run(method, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(method, "/token", strings.NewReader("scope=read"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			s.issueToken(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+			}
+		})
 	}
 }
 
