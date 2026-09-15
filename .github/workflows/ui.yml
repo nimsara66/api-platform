@@ -90,6 +90,7 @@ jobs:
         working-directory: portals/api-portal
         run: |
           npm ci
+          npm rebuild better-sqlite3 --ignore-scripts=false
           test_files="$(find src -type f -name '*.test.js' -print)"
           if [ -z "$test_files" ]; then
             echo 'No API Portal unit-test files found' >&2

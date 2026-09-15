@@ -21,6 +21,7 @@ package logcapture
 import (
 	"fmt"
 	"os"
+	"sync"
 	"sync/atomic"
 
 	"github.com/testcontainers/testcontainers-go"
@@ -46,6 +47,7 @@ type Writer struct {
 	dropped atomic.Int64
 	stop    chan struct{}
 	done    chan struct{}
+	close   sync.Once
 }
 
 type logLine struct {
@@ -59,9 +61,13 @@ func NewWriter(path string) (*Writer, error) {
 	if path == "" {
 		return nil, fmt.Errorf("logcapture: a writer needs a file path")
 	}
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("logcapture: creating %q: %w", path, err)
+	}
+	if err := f.Chmod(0o600); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("logcapture: restricting permissions on %q: %w", path, err)
 	}
 	w := &Writer{
 		lines: make(chan logLine, bufferedLines),
@@ -140,7 +146,7 @@ func (w *Writer) Consumer(component string) testcontainers.LogConsumer {
 // call while a container's log producer is still delivering lines — Accept remains a
 // harmless no-op send into an unread channel afterward, never a panic or a block.
 func (w *Writer) Close() {
-	close(w.stop)
+	w.close.Do(func() { close(w.stop) })
 	<-w.done
 }
 

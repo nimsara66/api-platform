@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -181,14 +182,22 @@ func runtimeCoverageEnvironment() map[string]string {
 	return env
 }
 
-// insecureClient returns an HTTP client that accepts the control plane's test certificate.
-func insecureClient() *http.Client {
+// platformAPIClient returns an HTTP client that verifies the control plane's generated certificate.
+func platformAPIClient() (*http.Client, error) {
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil || rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+	if ok := rootCAs.AppendCertsFromPEM(shared.ControlPlaneCrypto()["certs/cert.pem"]); !ok {
+		return nil, fmt.Errorf("loading the generated Platform API CA certificate")
+	}
+
 	return &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // see doc comment
+			TLSClientConfig: &tls.Config{RootCAs: rootCAs, ServerName: svcPlatformAPI},
 		},
-	}
+	}, nil
 }
 
 // platformAPIDBEnv converts a database DSN to the Platform API environment variables.
@@ -229,7 +238,10 @@ func provisionGatewayRegistration(
 		return nil, err
 	}
 
-	client := insecureClient()
+	client, err := platformAPIClient()
+	if err != nil {
+		return nil, err
+	}
 
 	bearer, err := platformAPILogin(ctx, client, base, actor.Administrator())
 	if err != nil {
@@ -287,7 +299,11 @@ func provisionGatewayRegistration(
 
 // ControlPlaneLogin exchanges credentials for a control-plane bearer token.
 func ControlPlaneLogin(ctx context.Context, base, username, password string) (string, error) {
-	return platformAPILogin(ctx, insecureClient(), base,
+	client, err := platformAPIClient()
+	if err != nil {
+		return "", err
+	}
+	return platformAPILogin(ctx, client, base,
 		actor.Credentials{Username: username, Password: password})
 }
 

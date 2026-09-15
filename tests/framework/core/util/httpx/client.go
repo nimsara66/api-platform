@@ -21,7 +21,6 @@ package httpx
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,6 +107,10 @@ type Options struct {
 	RetryDelay time.Duration
 	// RetryOn recognises transient responses.
 	RetryOn []TransientMatcher
+	// TLSClientConfig configures certificate verification for trusted test services.
+	// A nil value uses the system verification roots and hostname from the URL, unless
+	// InsecureSkipVerify is explicitly enabled.
+	TLSClientConfig *tls.Config
 	// InsecureSkipVerify disables TLS certificate and hostname verification. Use only for
 	// local test targets that intentionally use self-signed certificates.
 	InsecureSkipVerify bool
@@ -136,6 +139,7 @@ func NewClient(opts Options) *Client {
 		Timeout: opts.Timeout,
 		Transport: &http.Transport{
 			TLSClientConfig:     tlsConfig,
+>>>>>>> 2db17bd65 (Apply fixes based on review feedback)
 			MaxIdleConns:        200,
 			MaxIdleConnsPerHost: 50,
 			MaxConnsPerHost:     100,

@@ -143,6 +143,18 @@ func TestNewWriterRejectsAnEmptyPath(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestNewWriterRestrictsLogFilePermissions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "permissions.log")
+	require.NoError(t, os.WriteFile(path, []byte("old"), 0o644))
+
+	w, err := NewWriter(path)
+	require.NoError(t, err)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	w.Close()
+}
+
 func TestWriterWritesPrefixedInterleavedLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "block.log")
 	w, err := NewWriter(path)

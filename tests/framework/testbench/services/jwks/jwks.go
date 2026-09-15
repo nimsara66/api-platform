@@ -126,12 +126,13 @@ func (s *Service) serveJWKS(w http.ResponseWriter, r *http.Request) {
 
 // issueToken signs a token using the request's issuer, scope, and claim_* parameters.
 func (s *Service) issueToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+	method := strings.ToUpper(r.Method)
+	if method != http.MethodGet && method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodGet+", "+http.MethodPost)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if r.Method == http.MethodPost {
+	if method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
@@ -140,7 +141,11 @@ func (s *Service) issueToken(w http.ResponseWriter, r *http.Request) {
 	if expected := r.URL.Query().Get("expected_secret"); expected != "" {
 		_, secret, ok := r.BasicAuth()
 		if !ok || secret != expected {
-			http.Error(w, "invalid client credentials", http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			if _, err := w.Write([]byte(`{"error":"unauthorized","message":"Invalid or expired credentials."}`)); err != nil {
+				log.Printf("jwks: writing authentication error response: %v", err)
+			}
 			return
 		}
 	}
@@ -181,7 +186,7 @@ func (s *Service) issueToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if r.Method == http.MethodPost {
+	if method == http.MethodPost {
 		w.Header().Set("Content-Type", "application/json")
 		response, marshalErr := json.Marshal(map[string]any{
 			"access_token": raw, "token_type": "Bearer", "expires_in": 3600, "scope": scope,
