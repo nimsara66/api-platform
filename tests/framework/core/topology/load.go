@@ -24,6 +24,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -74,6 +75,9 @@ type ResolvedComponent struct {
 
 	// Version is the resolved image version, if one was configured.
 	Version string
+
+	// AddPoliciesFrom is the local policy tree used to build a custom gateway image.
+	AddPoliciesFrom string
 
 	// DB is the resolved component engine, or empty for a stateless component.
 	DB components.DBType
@@ -459,6 +463,13 @@ func resolveBlock(
 			errs.addf("block %q: unknown component %q (registered: %v)", name, c.Name, registry.Names())
 			continue
 		}
+		if source := strings.TrimSpace(c.AddPoliciesFrom); source != "" {
+			if c.Name != "platform-gateway" {
+				errs.addf("block %q: component %q does not support addPoliciesFrom", name, c.Name)
+			} else if filepath.IsAbs(source) {
+				errs.addf("block %q: addPoliciesFrom must be a relative path, got %q", name, source)
+			}
+		}
 
 		version := c.Version
 		if version == "" {
@@ -489,7 +500,8 @@ func resolveBlock(
 
 		_, dbVariant, _ := componentVariant(c, v, defaults)
 		rb.Components = append(rb.Components, ResolvedComponent{
-			Def: def, Version: version, DB: dbType, Image: dbVariant.Image, Overlay: c.Overlay, Replicas: replicas, Wiring: wiring,
+			Def: def, Version: version, AddPoliciesFrom: strings.TrimSpace(c.AddPoliciesFrom), DB: dbType,
+			Image: dbVariant.Image, Overlay: c.Overlay, Replicas: replicas, Wiring: wiring,
 			DependsOn: append([]string(nil), c.DependsOn...),
 		})
 	}
