@@ -39,6 +39,7 @@ import (
 	"github.com/wso2/api-platform/tests/framework/core/catalog/shared"
 	"github.com/wso2/api-platform/tests/framework/core/cleanup"
 	"github.com/wso2/api-platform/tests/framework/core/coverage"
+	"github.com/wso2/api-platform/tests/framework/core/logcapture"
 	frameworkruntime "github.com/wso2/api-platform/tests/framework/core/runtime"
 	"github.com/wso2/api-platform/tests/framework/core/topology"
 	"github.com/wso2/api-platform/tests/framework/core/util/httpx"
@@ -48,8 +49,15 @@ import (
 
 var selection topology.Selection
 
+// logsEnabled turns on combined per-block container log capture (-logs). It is not part
+// of Selection because, unlike -coverage, it does not change which images are built or
+// how the suite is narrowed — only whether container output is collected at run time.
+var logsEnabled bool
+
 func TestMain(m *testing.M) {
 	selection.Flags(flag.CommandLine)
+	flag.BoolVar(&logsEnabled, "logs", false,
+		"capture every block's combined container output to files under IT_LOG_OUT")
 	flag.Parse()
 
 	coverageMode := "false"
@@ -168,10 +176,27 @@ func TestUISuite(t *testing.T) {
 		t.Logf("coverage: collecting counters into %s", sink.Root())
 	}
 
+	// One sink per run, mirroring the coverage sink above: built here because only the
+	// suite knows its own directory, and wiped on creation so a stale local run's log
+	// files are never mixed with a fresh run's.
+	var logs *logcapture.Sink
+	if logsEnabled {
+		out := os.Getenv(logcapture.EnvOut)
+		if out == "" {
+			out = filepath.Join(dir, "logs-out")
+		}
+		logs, err = logcapture.NewSink(out)
+		if err != nil {
+			t.Fatalf("preparing the log capture sink: %v", err)
+		}
+		t.Logf("logcapture: collecting container output into %s", logs.Root())
+	}
+
 	frameworkruntime.Run(t, narrowed, frameworkruntime.Deps{
 		RepoRoot:    root,
 		FeatureRoot: dir,
 		Coverage:    sink,
+		Logs:        logs,
 		Steps: func(sc *godog.ScenarioContext, topo *frameworkruntime.Topology) {
 			steps.New(topo, sink).Register(sc)
 		},
