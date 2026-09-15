@@ -479,32 +479,64 @@ func (g *Gateway) configDumpRouteBasePath(ctx context.Context, basePath string, 
 	return fmt.Errorf("config dump still contains a route with base path %q", resolved)
 }
 
-// configDumpPolicyForRoute asserts the policy engine's config dump shows policyName attached
-// to the operation whose full path is routePath.
+// configDumpPolicyForRoute waits until the policy engine's config dump shows policyName attached
+// to the operation whose full path is routePath. The route can become visible before its policy
+// chain is populated, so checking one already-published dump is not sufficient.
 func (g *Gateway) configDumpPolicyForRoute(ctx context.Context, policyName, routePath string) error {
 	resolvedPath, err := stepscommon.Expand(ctx, routePath)
 	if err != nil {
 		return err
 	}
-	resp, err := httpx.Published(ctx)
+	containsPolicy := func(resp *httpx.Response) bool {
+		if resp == nil || !resp.Succeeded() {
+			return false
+		}
+		var dump configDump
+		if err := json.Unmarshal(resp.Body, &dump); err != nil {
+			return false
+		}
+		for _, entry := range dump.PolicyChains.PolicyChains {
+			if routeKeyPath(entry.RouteKey) != resolvedPath {
+				continue
+			}
+			for _, policy := range entry.Policies {
+				if policy.Name == policyName {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	// Preserve the response from the preceding config-dump request when it already satisfies
+	// the assertion. This is the normal path and keeps the assertion tied to the response the
+	// scenario explicitly requested; polling below is only needed when that snapshot is stale.
+	published, err := httpx.Published(ctx)
 	if err != nil {
 		return err
 	}
-	var dump configDump
-	if err := json.Unmarshal(resp.Body, &dump); err != nil {
-		return fmt.Errorf("parsing policy-engine config dump: %w", err)
+	if containsPolicy(published) {
+		return nil
 	}
-	for _, entry := range dump.PolicyChains.PolicyChains {
-		if routeKeyPath(entry.RouteKey) != resolvedPath {
-			continue
-		}
-		for _, p := range entry.Policies {
-			if p.Name == policyName {
-				return nil
-			}
-		}
+
+	url, err := g.serviceURL(ctx, "policy-engine", "/config_dump")
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("config dump does not show policy %q attached to route %q", policyName, resolvedPath)
+	last, err := retry.Until(ctx, retry.Options{}, func(ctx context.Context) (*httpx.Response, error) {
+		resp, requestErr := g.funnel.Client().Do(ctx, httpx.Request{
+			Method: http.MethodGet, URL: url, Headers: g.scenarioHeaders(ctx),
+		}, 0, 0)
+		if requestErr != nil {
+			return nil, retry.Transient(requestErr)
+		}
+		return resp, nil
+	}, containsPolicy)
+	if err := awaited(last, err, containsPolicy,
+		fmt.Sprintf("waiting for policy %q on route %q in the config dump", policyName, resolvedPath)); err != nil {
+		return err
+	}
+	return g.funnel.Publish(ctx, last)
 }
 
 func (g *Gateway) lazyResourceCount(ctx context.Context, want int, id string) error {

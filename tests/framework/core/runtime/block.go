@@ -455,7 +455,7 @@ func (t *Topology) startExternal(
 	if err := t.Instances.Add(inst); err != nil {
 		return err
 	}
-	return t.runProvisioner(ctx, def, inst)
+	return t.runProvisioner(ctx, def, inst, def.Name)
 }
 
 // runProvisioner records values produced for dependent components.

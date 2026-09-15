@@ -36,8 +36,3 @@ roles         = ["ap_subscriber"]
 username      = '{{ env "APIP_CP_PUBLISHER_USERNAME" "publisher" }}'
 password_hash = '{{ env "APIP_CP_PUBLISHER_PASSWORD_HASH" }}'
 roles         = ["ap_publisher"]
-
-[[platform_api.auth.file.users]]
-username      = '{{ env "APIP_CP_NARROW_USERNAME" "narrow" }}'
-password_hash = '{{ env "APIP_CP_NARROW_PASSWORD_HASH" }}'
-roles         = ["dp_narrow_it"]

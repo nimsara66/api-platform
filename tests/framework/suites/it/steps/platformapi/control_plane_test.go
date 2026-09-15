@@ -112,3 +112,35 @@ func TestDeploymentStatusMatches(t *testing.T) {
 		})
 	}
 }
+
+func TestIsLastProjectValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		resp *httpx.Response
+		want bool
+	}{
+		{
+			name: "last project",
+			resp: &httpx.Response{StatusCode: http.StatusBadRequest,
+				Body: []byte(`{"code":"VALIDATION_FAILED","message":"Organization must have at least one project"}`)},
+			want: true,
+		},
+		{
+			name: "different validation",
+			resp: &httpx.Response{StatusCode: http.StatusBadRequest,
+				Body: []byte(`{"code":"VALIDATION_FAILED","message":"Project has associated MCP proxies"}`)},
+			want: false,
+		},
+		{
+			name: "different status",
+			resp: &httpx.Response{StatusCode: http.StatusInternalServerError,
+				Body: []byte(`{"code":"VALIDATION_FAILED","message":"Organization must have at least one project"}`)},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, isLastProjectValidation(tt.resp))
+		})
+	}
+}

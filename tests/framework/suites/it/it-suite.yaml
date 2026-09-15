@@ -29,7 +29,7 @@ defaults:
 
 blocks:
   - name: api-portal-core
-    parallel: 6
+    parallel: 9
     components:
       - name: platform-api
         db: postgres
@@ -110,6 +110,7 @@ blocks:
     components:
       - name: platform-api
         db: postgres
+        overlay: tests/framework/core/catalog/overlays/platform-api-auth-users.toml
         stagedFiles:
           role-to-scope-mapping.yaml: tests/framework/core/catalog/platformapi/resources/api-portal-auth-roles.yaml
       - name: api-portal
@@ -128,6 +129,7 @@ blocks:
     components:
       - name: platform-api
         db: postgres
+        overlay: tests/framework/core/catalog/overlays/platform-api-auth-users.toml
         stagedFiles:
           role-to-scope-mapping.yaml: tests/framework/core/catalog/platformapi/resources/api-portal-auth-roles.yaml
       - name: api-portal
@@ -664,6 +666,7 @@ blocks:
       - name: api-portal
         dependsOn: [platform-api]
         db: postgres
+        overlay: tests/framework/core/catalog/overlays/api-portal-webhook.toml
       - name: platform-gateway
         dependsOn: [platform-api]
         db: postgres

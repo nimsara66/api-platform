@@ -123,6 +123,13 @@ func (s *Steps) registerPlatformResource(ctx context.Context, kind cleanup.Kind,
 			return err
 		}
 		if resp.StatusCode != http.StatusNotFound && !resp.Succeeded() {
+			// The platform API deliberately retains the last project in an
+			// organization. A generated project may therefore be the baseline
+			// project at teardown; treat only that documented validation response
+			// as an intentional retention, while preserving all other failures.
+			if kind == platformProjectKind && isLastProjectValidation(resp) {
+				return nil
+			}
 			return fmt.Errorf("deleting %s: %s", res.ID, resp.Describe())
 		}
 		return nil
@@ -130,6 +137,20 @@ func (s *Steps) registerPlatformResource(ctx context.Context, kind cleanup.Kind,
 		return err
 	}
 	return reg.Register(cleanup.Resource{Kind: kind, ID: id, Actor: "admin", Description: "created via platform-api"})
+}
+
+func isLastProjectValidation(resp *httpx.Response) bool {
+	if resp == nil || resp.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	var body struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(resp.Body, &body); err != nil {
+		return false
+	}
+	return body.Code == "VALIDATION_FAILED" && body.Message == "Organization must have at least one project"
 }
 
 func (s *Steps) registerPlatformDeployment(ctx context.Context, collection, handle, deploymentID, gatewayID string) error {

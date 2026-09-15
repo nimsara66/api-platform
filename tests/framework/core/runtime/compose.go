@@ -185,7 +185,7 @@ func LaunchCompose(
 	}
 
 	if opts.LogWriter != nil {
-		stops, err := attachComposeLogProducers(ctx, stack, spec.Services, opts.LogWriter)
+		stops, err := attachComposeLogProducers(ctx, stack, result.Services(), opts.LogWriter)
 		result.stopLogProducers = stops
 		if err != nil {
 			cleanupErr := result.Stop(context.Background())
@@ -661,10 +661,7 @@ func containsService(services []string, name string) bool {
 }
 
 func (c *ComposeStack) services() []string {
-	if c.def != nil && c.def.Compose != nil {
-		return c.def.Compose.Services
-	}
-	return nil
+	return c.Services()
 }
 
 // StopService stops one service while leaving the rest of the stack running.

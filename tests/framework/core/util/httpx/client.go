@@ -21,6 +21,7 @@ package httpx
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -139,7 +140,6 @@ func NewClient(opts Options) *Client {
 		Timeout: opts.Timeout,
 		Transport: &http.Transport{
 			TLSClientConfig:     tlsConfig,
->>>>>>> 2db17bd65 (Apply fixes based on review feedback)
 			MaxIdleConns:        200,
 			MaxIdleConnsPerHost: 50,
 			MaxConnsPerHost:     100,

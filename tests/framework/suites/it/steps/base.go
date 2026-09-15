@@ -20,6 +20,8 @@ package steps
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -32,6 +34,7 @@ import (
 
 	"github.com/cucumber/godog"
 
+	"github.com/wso2/api-platform/tests/framework/core/catalog/shared"
 	frameworkruntime "github.com/wso2/api-platform/tests/framework/core/runtime"
 	"github.com/wso2/api-platform/tests/framework/core/util/httpx"
 	"github.com/wso2/api-platform/tests/framework/core/util/retry"
@@ -100,10 +103,10 @@ type Suite struct {
 // New creates the step bindings for one resolved block.
 func New(topo *frameworkruntime.Topology, featureRoot ...string) *Suite {
 	client := httpx.NewClient(httpx.Options{
-		Timeout:            30 * time.Second,
-		MaxRetries:         3,
-		RetryDelay:         2 * time.Second,
-		InsecureSkipVerify: true,
+		Timeout:         30 * time.Second,
+		MaxRetries:      3,
+		RetryDelay:      2 * time.Second,
+		TLSClientConfig: platformAPITLSConfig(),
 	})
 	root := ""
 	if len(featureRoot) > 0 {
@@ -116,6 +119,20 @@ func New(topo *frameworkruntime.Topology, featureRoot ...string) *Suite {
 	}
 	stepscommon.ConfigureExpansion()
 	return &Suite{Base: base}
+}
+
+// platformAPITLSConfig trusts the certificate generated for the Platform API component.
+// The shared step client also serves control-plane steps, while remaining generic for
+// gateway-only blocks where this configuration is simply unused.
+func platformAPITLSConfig() *tls.Config {
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil || rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+	if !rootCAs.AppendCertsFromPEM(shared.ControlPlaneCrypto()["certs/cert.pem"]) {
+		return nil
+	}
+	return &tls.Config{RootCAs: rootCAs, ServerName: "platform-api"}
 }
 
 // Register binds shared and product-specific Gherkin steps.
